@@ -1,0 +1,138 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-26
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Select Xcode version
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.5'
+
+      - name: Read release version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -m1 'MARKETING_VERSION' git-watch.xcodeproj/project.pbxproj | sed 's/.*= *//;s/;//')
+
+          if [ -z "${VERSION}" ]; then
+            echo "Failed to read MARKETING_VERSION" >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "dmg=dist/GitWatch-${VERSION}.dmg" >> "$GITHUB_OUTPUT"
+          echo "zip=dist/GitWatch-${VERSION}-updater.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Fail if tag or release already exists
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} already exists" >&2
+            exit 1
+          fi
+
+          if gh release view "${TAG}" --repo Re-Jacky/git-watch >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists" >&2
+            exit 1
+          fi
+
+      - name: Show resolved release values
+        shell: bash
+        run: |
+          echo "Version: ${{ steps.version.outputs.version }}"
+          echo "Tag: ${{ steps.version.outputs.tag }}"
+          echo "DMG: ${{ steps.version.outputs.dmg }}"
+          echo "ZIP: ${{ steps.version.outputs.zip }}"
+
+      - name: Generate release notes
+        id: release_notes
+        shell: bash
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
+
+          {
+            echo "## What's Changed"
+            echo ""
+            if [ -n "$PREVIOUS_TAG" ]; then
+              git log "${PREVIOUS_TAG}..HEAD" --format='- %s (%h)'
+            else
+              git log HEAD --format='- %s (%h)'
+            fi
+            echo ""
+            if [ -n "$PREVIOUS_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/Re-Jacky/git-watch/compare/${PREVIOUS_TAG}...${{ steps.version.outputs.tag }}"
+            fi
+          } > "$NOTES_FILE"
+
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Show generated release notes
+        shell: bash
+        run: cat "${{ steps.release_notes.outputs.notes_file }}"
+
+      - name: Build release artifacts
+        shell: bash
+        run: bash scripts/build-dmg.sh
+
+      - name: Verify release artifacts exist
+        shell: bash
+        run: |
+          if [ ! -f "${{ steps.version.outputs.dmg }}" ]; then
+            echo "Missing DMG artifact: ${{ steps.version.outputs.dmg }}" >&2
+            exit 1
+          fi
+
+          if [ ! -f "${{ steps.version.outputs.zip }}" ]; then
+            echo "Missing updater ZIP artifact: ${{ steps.version.outputs.zip }}" >&2
+            exit 1
+          fi
+
+          ls -lh "${{ steps.version.outputs.dmg }}" "${{ steps.version.outputs.zip }}"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.version.outputs.dmg }}" \
+            "${{ steps.version.outputs.zip }}" \
+            --repo Re-Jacky/git-watch \
+            --target "${{ github.sha }}" \
+            --title "GitWatch ${{ steps.version.outputs.version }}" \
+            --notes-file "${{ steps.release_notes.outputs.notes_file }}"
+
+      - name: Write workflow summary
+        shell: bash
+        run: |
+          {
+            echo "## Release Published"
+            echo ""
+            echo "- Version: ${{ steps.version.outputs.version }}"
+            echo "- Tag: ${{ steps.version.outputs.tag }}"
+            echo "- Previous Tag: ${{ steps.release_notes.outputs.previous_tag || 'none' }}"
+            echo "- DMG: ${{ steps.version.outputs.dmg }}"
+            echo "- ZIP: ${{ steps.version.outputs.zip }}"
+          } >> "$GITHUB_STEP_SUMMARY"
