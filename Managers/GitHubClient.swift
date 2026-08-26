@@ -206,7 +206,7 @@ private struct DashboardData: Decodable {
         let createdAt: Date
         let author: Author
         let repository: Repo
-        let reviewDecision: ReviewDecision?
+        let reviewDecision: LenientReviewDecision?
         let mergeableRaw: String?
         let mergeStateStatus: MergeStateStatus
         let commits: Commits?
@@ -253,7 +253,7 @@ private struct DashboardData: Decodable {
                 url: node.url,
                 authorLogin: node.author.login,
                 createdAt: node.createdAt,
-                reviewDecision: node.reviewDecision,
+                reviewDecision: node.reviewDecision?.value,
                 mergeable: node.mergeableRaw == "MERGEABLE",
                 mergeStateStatus: node.mergeStateStatus,
                 viewerPermission: node.repository.viewerPermission,

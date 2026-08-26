@@ -93,8 +93,20 @@ jobs:
         run: cat "${{ steps.release_notes.outputs.notes_file }}"
 
       - name: Build release artifacts
+        id: build
         shell: bash
-        run: bash build-dmg.sh
+        run: |
+          bash build-dmg.sh > build-output.log
+          cat build-output.log
+
+          CHECKSUM=$(sed -n 's/^sha256:[[:space:]]*//p' build-output.log | head -n 1)
+
+          if [ -z "${CHECKSUM}" ]; then
+            echo "Missing sha256 line in build-dmg.sh output" >&2
+            exit 1
+          fi
+
+          echo "zip_checksum=${CHECKSUM}" >> "$GITHUB_OUTPUT"
 
       - name: Verify release artifacts exist
         shell: bash
@@ -116,6 +128,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
+          printf '\nUpdater zip checksum:\n\nsha256: %s\n' "${{ steps.build.outputs.zip_checksum }}" >> "${{ steps.release_notes.outputs.notes_file }}"
+
           gh release create "${{ steps.version.outputs.tag }}" \
             "${{ steps.version.outputs.dmg }}" \
             "${{ steps.version.outputs.zip }}" \

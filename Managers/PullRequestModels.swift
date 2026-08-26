@@ -6,6 +6,14 @@ enum ReviewDecision: String, Codable {
     case reviewRequired = "REVIEW_REQUIRED"
 }
 
+struct LenientReviewDecision: Decodable {
+    let value: ReviewDecision?
+
+    init(from decoder: Decoder) throws {
+        value = try? ReviewDecision(from: decoder)
+    }
+}
+
 enum MergeStateStatus: String, Codable {
     case clean = "CLEAN"
     case dirty = "DIRTY"

@@ -123,4 +123,34 @@ final class PullRequestModelDecodingTests: XCTestCase {
         XCTAssertEqual(snapshot.authored[0].mergeStateStatus, .unknown)
         XCTAssertEqual(snapshot.authored[0].viewerPermission, .unknown)
     }
+
+    func testUnknownReviewDecisionValueDecodesAsNil() throws {
+        let body = """
+        {
+          "data": {
+            "viewer": { "login": "rejacky" },
+            "authored": {
+              "nodes": [
+                {
+                  "id": "PRR_4", "number": 400, "title": "Future review decision",
+                  "url": "https://github.com/acme/infra/pull/400",
+                  "createdAt": "2026-08-26T07:00:00Z",
+                  "author": { "login": "teammate" },
+                  "repository": { "nameWithOwner": "acme/infra", "viewerPermission": "WRITE" },
+                  "reviewDecision": "SOMETHING_NEW",
+                  "mergeable": "MERGEABLE",
+                  "mergeStateStatus": "CLEAN",
+                  "commits": { "nodes": [] }
+                }
+              ],
+              "pageInfo": { "hasNextPage": false, "endCursor": null }
+            },
+            "reviewRequested": { "nodes": [], "pageInfo": { "hasNextPage": false, "endCursor": null } }
+          }
+        }
+        """
+        let snapshot = try GitHubClient.decodeDashboardResponse(Data(body.utf8))
+        XCTAssertEqual(snapshot.authored.count, 1)
+        XCTAssertNil(snapshot.authored[0].reviewDecision)
+    }
 }

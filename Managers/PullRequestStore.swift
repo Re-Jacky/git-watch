@@ -172,6 +172,7 @@ final class PullRequestStore: ObservableObject {
         defer { inFlightActionIDs.remove(summary.id) }
         do {
             try await operation(client)
+            await performRefresh()
         } catch let error as GitHubClientError {
             switch error {
             case .unauthorized:
@@ -184,6 +185,5 @@ final class PullRequestStore: ObservableObject {
         } catch {
             actionErrors[summary.id] = error.localizedDescription
         }
-        await performRefresh()
     }
 }

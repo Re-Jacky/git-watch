@@ -157,11 +157,16 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         XCTAssertEqual(store.status, .live)
     }
 
-    func testApproveMarksInFlightClearsErrorsThenRefreshes() async {
+    func testFailedApproveRetainsInlineErrorWithoutForcedRefresh() async {
         let transport = FakeTransport()
         transport.stubbedData = DashboardFixture.make()
         let store = makeStore(transport: transport)
         await store.refresh(force: true)
+        XCTAssertEqual(store.status, .live)
+        XCTAssertEqual(transport.callCount, 1)
+        let refreshedAtBeforeAction = store.lastRefreshedAt
+        XCTAssertNotNil(refreshedAtBeforeAction)
+
         let pr = PullRequestSummary(
             id: "pr9", number: 9, title: "t", repositoryNameWithOwner: "o/r",
             url: URL(string: "https://github.com/o/r/pull/9")!, authorLogin: "a",
@@ -171,7 +176,38 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         transport.stubbedError = GitHubClientError.api(["Pull Request is not mergeable"])
         await store.approve(pr)
         XCTAssertTrue(store.inFlightActionIDs.isEmpty)
+
+        transport.stubbedError = nil
         XCTAssertEqual(store.actionErrors["pr9"], "Pull Request is not mergeable")
+        XCTAssertEqual(store.lastRefreshedAt, refreshedAtBeforeAction)
+        XCTAssertEqual(store.status, .live)
+        XCTAssertEqual(transport.callCount, 2)
+    }
+
+    func testSuccessfulApproveClearsErrorsViaRefresh() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make()
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+
+        let pr = PullRequestSummary(
+            id: "pr9", number: 9, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/9")!, authorLogin: "a",
+            createdAt: Date(), reviewDecision: nil, mergeable: true,
+            mergeStateStatus: .blocked, viewerPermission: .read, checks: []
+        )
+        transport.stubbedError = GitHubClientError.api(["blocked"])
+        await store.approve(pr)
+        XCTAssertEqual(store.actionErrors["pr9"], "blocked")
+        XCTAssertEqual(transport.callCount, 2)
+        let timestampAfterFailedAction = store.lastRefreshedAt
+
+        transport.stubbedError = nil
+        await store.approve(pr)
+        XCTAssertTrue(store.actionErrors.isEmpty)
+        XCTAssertNotEqual(store.lastRefreshedAt, timestampAfterFailedAction)
+        XCTAssertEqual(store.status, .live)
+        XCTAssertEqual(transport.callCount, 4)
     }
 
     func testActionableCountCombinesReviewAndMerge() {

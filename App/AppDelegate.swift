@@ -77,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let client = GitHubClient(provider: authProvider)
         pullRequestStore = PullRequestStore(client: client, settings: githubSettings)
         pullRequestStore.startAutomaticRefresh(interval: 300)
+        Task { @MainActor [weak self] in
+            await self?.pullRequestStore.refresh(force: false)
+        }
         setupMainMenu()
         setupThemeObservation()
         setupStatusItem()

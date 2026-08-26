@@ -38,6 +38,9 @@ ZIP_OUT="${DIST_DIR}/${APP_NAME}-${VERSION}-updater.zip"
 echo "==> Creating updater ZIP..."
 ditto -c -k --sequesterRsrc --keepParent "${APP_PATH}" "${ZIP_OUT}"
 
+CHECKSUM=$(shasum -a 256 "${ZIP_OUT}" | awk '{print $1}')
+printf '%s  %s\n' "${CHECKSUM}" "$(basename "${ZIP_OUT}")" > "${DIST_DIR}/${APP_NAME}-${VERSION}-updater.zip.sha256"
+
 DMG_TMP="/tmp/${APP_NAME}-tmp.dmg"
 DMG_OUT="${DIST_DIR}/${APP_NAME}-${VERSION}.dmg"
 
@@ -54,3 +57,4 @@ rm -rf "${STAGING_DIR}"
 rm -rf "${DERIVED_DATA_DIR}"
 
 echo "==> Done: ${ZIP_OUT} ${DMG_OUT}"
+echo "sha256: ${CHECKSUM}"
