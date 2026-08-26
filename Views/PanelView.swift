@@ -30,7 +30,7 @@ struct PanelView: View {
                         Image(systemName: "bolt.fill")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(Color(hex: "58A6FF"))
-                        Text("Auto mode is on — new review requests are approved automatically and green PRs you can merge are merged automatically.")
+                        Text(autoModeBannerText)
                             .font(.system(size: 11))
                             .foregroundColor(.appPrimaryText)
                             .fixedSize(horizontal: false, vertical: true)
@@ -100,6 +100,19 @@ struct PanelView: View {
             return message
         default:
             return nil
+        }
+    }
+
+    private var autoModeBannerText: String {
+        switch (githubSettings.autoApproveEnabled, githubSettings.autoMergeEnabled) {
+        case (true, true):
+            return "Auto mode is on — new review requests are approved automatically and green PRs you can merge are merged automatically."
+        case (true, false):
+            return "Auto mode is on — new review requests are approved automatically."
+        case (false, true):
+            return "Auto mode is on — green PRs you can merge are merged automatically."
+        case (false, false):
+            return "Auto mode is on, but no actions are selected in Settings — nothing will happen until you enable Approve or Merge."
         }
     }
 

@@ -164,3 +164,7 @@ Optional full automation toggle (`github.autoModeEnabled`, default off; Settings
 - **Approve**: every PR in Waiting-for-your-review is approved automatically, regardless of CI state, including re-approval after an author pushes changes and a stale-review dismissal flips the PR back to review-required. Failed attempts surface as the row's inline error and retry on the next 5-minute cycle.
 - **Merge**: every Ready-for-you-to-merge PR (already requires CLEAN/HAS_HOOKS + write permission + mergeable) is merged with the configured default method.
 - Processing runs after every refresh cycle and immediately when toggled on. While active: menu bar badge renders as a solid accent-blue disc with knocked-out glyph and blue count; panel shows an info banner under the tabs describing the behavior.
+
+### 2026-08-26 — Auto Mode scopes
+
+Auto mode gains per-action scopes: `github.autoApprove` (default **on**) and `github.autoMerge` (default off), shown as checkboxes under the Auto Mode toggle in Settings → GitHub (visible only while the master toggle is on). The store's approve/merge phases each gate on their scope flag. The panel banner text adapts to the selected scopes; a warning appears in Settings when Auto is on with no scopes selected.

@@ -144,12 +144,14 @@ final class PullRequestStore: ObservableObject {
         isAutoProcessing = true
         defer { isAutoProcessing = false }
 
-        let waitingSnapshot = waitingMyReview
-        for pr in waitingSnapshot where inFlightActionIDs.contains(pr.id) == false {
-            await approve(pr)
+        if settings.autoApproveEnabled {
+            let waitingSnapshot = waitingMyReview
+            for pr in waitingSnapshot where inFlightActionIDs.contains(pr.id) == false {
+                await approve(pr)
+            }
         }
 
-        guard settings.autoModeEnabled else { return }
+        guard settings.autoModeEnabled, settings.autoMergeEnabled else { return }
 
         let readySnapshot = readyToMerge
         for pr in readySnapshot where inFlightActionIDs.contains(pr.id) == false {

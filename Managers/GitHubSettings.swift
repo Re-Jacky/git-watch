@@ -29,6 +29,8 @@ final class GitHubSettings: ObservableObject {
     static let patKey = "github.personalAccessToken"
     static let mergeMethodKey = "github.mergeMethod"
     static let autoModeKey = "github.autoModeEnabled"
+    static let autoApproveKey = "github.autoApprove"
+    static let autoMergeKey = "github.autoMerge"
 
     @Published var personalAccessToken: String {
         didSet { userDefaults.set(personalAccessToken, forKey: Self.patKey) }
@@ -42,6 +44,14 @@ final class GitHubSettings: ObservableObject {
         didSet { userDefaults.set(autoModeEnabled, forKey: Self.autoModeKey) }
     }
 
+    @Published var autoApproveEnabled: Bool {
+        didSet { userDefaults.set(autoApproveEnabled, forKey: Self.autoApproveKey) }
+    }
+
+    @Published var autoMergeEnabled: Bool {
+        didSet { userDefaults.set(autoMergeEnabled, forKey: Self.autoMergeKey) }
+    }
+
     private let userDefaults: UserDefaults
     private let ghCLI: GHCLIRunning
 
@@ -52,6 +62,8 @@ final class GitHubSettings: ObservableObject {
         let raw = userDefaults.string(forKey: Self.mergeMethodKey)
         self.mergeMethod = raw.flatMap(MergeMethod.init(rawValue:)) ?? .merge
         self.autoModeEnabled = userDefaults.bool(forKey: Self.autoModeKey)
+        self.autoApproveEnabled = userDefaults.object(forKey: Self.autoApproveKey) as? Bool ?? true
+        self.autoMergeEnabled = userDefaults.bool(forKey: Self.autoMergeKey)
     }
 
     init(personalAccessToken: String, ghCLI: GHCLIRunning, userDefaults: UserDefaults) {
@@ -60,5 +72,7 @@ final class GitHubSettings: ObservableObject {
         self.personalAccessToken = personalAccessToken
         self.mergeMethod = .merge
         self.autoModeEnabled = false
+        self.autoApproveEnabled = true
+        self.autoMergeEnabled = false
     }
 }

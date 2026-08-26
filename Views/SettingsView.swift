@@ -99,10 +99,27 @@ struct SettingsView: View {
                 Toggle("Enable Auto Mode", isOn: $githubSettings.autoModeEnabled)
                     .toggleStyle(.switch)
 
-                Text("While enabled, every PR waiting for your review is approved automatically — including re-approval after an author pushes changes and your stale review is dismissed — and any green PR you have permission to merge is merged immediately using your default merge method. The menu bar icon turns blue while Auto mode is active.")
+                if githubSettings.autoModeEnabled {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle("Automatically approve PRs waiting for my review", isOn: $githubSettings.autoApproveEnabled)
+                            .toggleStyle(.checkbox)
+                        Toggle("Automatically merge green PRs I have permission to merge", isOn: $githubSettings.autoMergeEnabled)
+                            .toggleStyle(.checkbox)
+                    }
+                    .padding(.leading, 16)
+                }
+
+                Text("While enabled, Auto mode runs after every refresh and immediately when switched on. Approve covers every review request — including re-approval after an author pushes changes and your stale review is dismissed — regardless of CI state. Merge only touches green PRs you have permission to merge, using your default merge method. The menu bar icon turns blue while Auto mode is active.")
                     .font(.system(size: 13))
                     .foregroundColor(.appSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if githubSettings.autoModeEnabled && githubSettings.autoApproveEnabled == false && githubSettings.autoMergeEnabled == false {
+                    Text("No actions are selected — Auto mode is on but will not do anything until you enable Approve or Merge.")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.appStatusPending)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Divider()

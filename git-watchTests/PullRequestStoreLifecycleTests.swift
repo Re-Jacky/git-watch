@@ -236,6 +236,59 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         return store
     }
 
+    func testAutoModeDefaultsToApproveOnly() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [
+                .placeholder(id: "r1"),
+                .placeholder(id: "r2", state: .clean, permission: .write, mergeable: true)
+            ]
+        )
+        let ghCLI = FakeGHCLI()
+        let settings = GitHubSettings(
+            personalAccessToken: "pat-token",
+            ghCLI: ghCLI,
+            userDefaults: UserDefaultsFactory.make()
+        )
+        XCTAssertTrue(settings.autoApproveEnabled)
+        XCTAssertFalse(settings.autoMergeEnabled)
+
+        settings.autoModeEnabled = true
+        let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
+        provider.resolve()
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings)
+        await store.refresh(force: true)
+
+        XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
+        XCTAssertEqual(transport.mutationCallCount(containing: "mergePullRequest"), 0)
+    }
+
+    func testAutoModeMergesWhenMergeScopeEnabled() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [
+                .placeholder(id: "r1"),
+                .placeholder(id: "r2", state: .clean, permission: .write, mergeable: true)
+            ]
+        )
+        let ghCLI = FakeGHCLI()
+        let settings = GitHubSettings(
+            personalAccessToken: "pat-token",
+            ghCLI: ghCLI,
+            userDefaults: UserDefaultsFactory.make()
+        )
+        settings.autoModeEnabled = true
+        settings.autoMergeEnabled = true
+
+        let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
+        provider.resolve()
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings)
+        await store.refresh(force: true)
+
+        XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
+        XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "mergePullRequest"), 1)
+    }
+
     private func makeInstrumentedAutoStore(transport: FakeTransport) -> (PullRequestStore, GitHubSettings) {
         let ghCLI = FakeGHCLI()
         let resolvedSettings = GitHubSettings(
@@ -244,6 +297,8 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
             userDefaults: UserDefaultsFactory.make()
         )
         resolvedSettings.autoModeEnabled = true
+        resolvedSettings.autoApproveEnabled = true
+        resolvedSettings.autoMergeEnabled = true
         let provider = GitHubAuthProvider(settings: resolvedSettings, ghCLI: ghCLI)
         provider.resolve()
         let client = GitHubClient(provider: provider, transport: transport)
