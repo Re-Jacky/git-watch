@@ -2,6 +2,12 @@ require 'xcodeproj'
 require 'fileutils'
 
 project_path = 'git-watch.xcodeproj'
+existing_version = nil
+if File.exist?(File.join(project_path, 'project.pbxproj'))
+  existing_version = File.read(File.join(project_path, 'project.pbxproj'))[/MARKETING_VERSION = ([^;]+);/, 1]
+end
+MARKETING_VERSION = existing_version || '0.1.0'
+
 FileUtils.rm_rf(project_path)
 
 project = Xcodeproj::Project.new(project_path)
@@ -45,7 +51,7 @@ end
 app.build_configurations.each do |cfg|
   cfg.build_settings.merge!(
     'PRODUCT_BUNDLE_IDENTIFIER' => 'com.rejacky.gitwatch',
-    'MARKETING_VERSION' => '0.1.0',
+    'MARKETING_VERSION' => MARKETING_VERSION,
     'CURRENT_PROJECT_VERSION' => '1',
     'SWIFT_VERSION' => '5.9',
     'PRODUCT_MODULE_NAME' => 'git_watch',
@@ -66,7 +72,7 @@ helper.product_name = 'GitWatchUpdater'
 helper.build_configurations.each do |cfg|
   cfg.build_settings.merge!(
     'PRODUCT_BUNDLE_IDENTIFIER' => 'com.rejacky.GitWatchUpdater',
-    'MARKETING_VERSION' => '0.1.0',
+    'MARKETING_VERSION' => MARKETING_VERSION,
     'CURRENT_PROJECT_VERSION' => '1',
     'SWIFT_VERSION' => '5.9',
     'GENERATE_INFOPLIST_FILE' => 'YES',

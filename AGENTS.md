@@ -6,7 +6,7 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 
 - `xcodebuild -project git-watch.xcodeproj -scheme git-watch -configuration Debug build`
 - `xcodebuild test -project git-watch.xcodeproj -scheme git-watch -destination 'platform=macOS'`
-- Regenerate project after adding files: edit sources on disk, then `ruby scripts/add_files.rb <paths>` (requires the ruby `xcodeproj` gem); full regen via `ruby scripts/create_project.rb` (destructive — deletes and recreates the project file)
+- Regenerate project after adding files: edit sources on disk, then `ruby scripts/add_files.rb <paths>` (requires the ruby `xcodeproj` gem); full regen via `ruby scripts/create_project.rb` (destructive — deletes and recreates the project file, but preserves `MARKETING_VERSION` from the existing project)
 - Release packaging: `bash build-dmg.sh` → `dist/GitWatch-<version>.dmg` + updater zip; the updater zip checksum is emitted as a `sha256:` stdout line (+ `.sha256` sidecar) that CI appends to release notes and the update client parses.
 - CI: `.github/workflows/release.yml` — triggers automatically on push to `main` touching `project.pbxproj` (or the workflow itself), plus manual dispatch; publishes from `MARKETING_VERSION` and fails if the tag already exists
 
