@@ -48,6 +48,7 @@ app.build_configurations.each do |cfg|
     'MARKETING_VERSION' => '0.1.0',
     'CURRENT_PROJECT_VERSION' => '1',
     'SWIFT_VERSION' => '5.9',
+    'PRODUCT_MODULE_NAME' => 'git_watch',
     'INFOPLIST_FILE' => 'Info.plist',
     'GENERATE_INFOPLIST_FILE' => 'NO',
     'CODE_SIGN_IDENTITY' => '-',
@@ -100,6 +101,10 @@ tests.build_configurations.each do |cfg|
   )
 end
 tests_group = main_group.new_group('git-watchTests', 'git-watchTests')
+Dir.glob('git-watchTests/**/*.swift').sort.each do |f|
+  ref = tests_group.new_reference(File.basename(f))
+  tests.source_build_phase.add_file_reference(ref)
+end
 tests.add_dependency(app)
 
 project.save
