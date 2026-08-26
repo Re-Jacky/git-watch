@@ -57,6 +57,10 @@ final class GitHubClient {
     private let provider: GitHubAuthProvider
     private let transport: GitHubTransporting
 
+    var isAuthenticated: Bool {
+        provider.resolution.token != nil
+    }
+
     init(provider: GitHubAuthProvider, transport: GitHubTransporting = URLSessionGitHubTransport()) {
         self.provider = provider
         self.transport = transport

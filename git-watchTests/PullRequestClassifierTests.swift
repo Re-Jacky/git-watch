@@ -48,8 +48,8 @@ final class PullRequestClassifierTests: XCTestCase {
     }
 
     func testBlockedOrBehindStaysInWaiting() {
-        let blocked = summary(id: "d", state: .blocked, permission: .write, mergeable: true)
-        let behind = summary(id: "e", state: .behind, permission: .maintain, mergeable: true)
+        let blocked = summary(id: "d", daysAgo: 1, state: .blocked, permission: .write, mergeable: true)
+        let behind = summary(id: "e", daysAgo: 2, state: .behind, permission: .maintain, mergeable: true)
         let result = PullRequestClassifier.group(authored: [], reviewRequested: [blocked, behind])
         XCTAssertEqual(result.waitingMyReview.map(\.id), ["d", "e"])
         XCTAssertTrue(result.readyToMerge.isEmpty)
