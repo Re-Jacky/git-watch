@@ -41,5 +41,6 @@ struct MenuBarBadgeView: View {
         }
         .foregroundColor(.primary)
         .padding(.horizontal, 2)
+        .accessibilityLabel("GitWatch" + (count > 0 ? ", \(count) pull requests" : ""))
     }
 }

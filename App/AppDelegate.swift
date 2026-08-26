@@ -215,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             contentView.layer?.cornerRadius = 12
             contentView.layer?.masksToBounds = true
         }
+        p.setContentSize(NSSize(width: PanelMetrics.defaultWidth, height: PanelMetrics.defaultHeight))
         return p
     }
 
