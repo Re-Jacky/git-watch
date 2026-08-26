@@ -94,7 +94,7 @@ jobs:
 
       - name: Build release artifacts
         shell: bash
-        run: bash scripts/build-dmg.sh
+        run: bash build-dmg.sh
 
       - name: Verify release artifacts exist
         shell: bash
