@@ -217,6 +217,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(updateManager)
                 .environmentObject(githubSettings)
         )
+        vc.sizingOptions = []
         vc.view.appearance = themeManager.currentTheme.nsAppearance
         p.contentViewController = vc
 
