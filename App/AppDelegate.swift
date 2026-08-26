@@ -63,15 +63,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var eventMonitor: Any?
     private let themeManager = ThemeManager()
     private let launchAtLoginSettings = LaunchAtLoginSettings()
-    private let githubSettings = GitHubSettings()
-    private lazy var authProvider = GitHubAuthProvider(settings: githubSettings)
+    private var githubSettings: GitHubSettings!
+    private var authProvider: GitHubAuthProvider!
+    private var pullRequestStore: PullRequestStore!
+    private var badgeController: MenuBarBadgeController?
     private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "Re-Jacky", repoName: "git-watch"))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        githubSettings = GitHubSettings()
+        authProvider = GitHubAuthProvider(settings: githubSettings)
+        authProvider.resolve()
+        let client = GitHubClient(provider: authProvider)
+        pullRequestStore = PullRequestStore(client: client, settings: githubSettings)
+        pullRequestStore.startAutomaticRefresh(interval: 300)
         setupMainMenu()
         setupThemeObservation()
         setupStatusItem()
+        observeBadgeCount()
         panel = makePanel()
         launchAtLoginSettings.refresh()
 
@@ -82,10 +91,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateManager.performPostUpgradeTasks()
     }
 
+    private func observeBadgeCount() {
+        Publishers.CombineLatest(pullRequestStore.$waitingMyReview, pullRequestStore.$readyToMerge)
+            .map { $0.count + $1.count }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] count in
+                self?.badgeController?.update(count: count)
+            }
+            .store(in: &cancellables)
+    }
+
     private func setupStatusItem() {
         guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: "git.pullrequest", accessibilityDescription: "GitWatch")
-        button.image?.isTemplate = true
+        badgeController = MenuBarBadgeController(statusItem: statusItem)
+        badgeController?.update(count: 0)
         button.action = #selector(handleClick)
         button.target = self
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -97,6 +116,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showContextMenu()
         } else {
             togglePanel()
+        }
+    }
+
+    @objc private func refreshNow() {
+        openPanelIfPossible()
+        Task { @MainActor [weak self] in
+            await self?.pullRequestStore.refresh(force: true)
         }
     }
 
@@ -179,6 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let vc = NSHostingController(
             rootView: PanelView()
                 .environmentObject(themeManager)
+                .environmentObject(pullRequestStore)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
         p.contentViewController = vc
@@ -215,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let openItem = NSMenuItem(title: openTitle, action: #selector(togglePanel), keyEquivalent: "")
         openItem.target = self
         menu.addItem(openItem)
-        let refreshItem = NSMenuItem(title: "Refresh", action: nil, keyEquivalent: "")
+        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshNow), keyEquivalent: "")
         refreshItem.target = self
         menu.addItem(refreshItem)
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")

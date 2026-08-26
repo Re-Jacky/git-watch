@@ -21,6 +21,9 @@ extension Color {
     static var appFieldBorder: Color { Color(NSColor.quaternaryLabelColor) }
     static var appTrackBackground: Color { Color(NSColor.quaternaryLabelColor).opacity(0.35) }
     static var appSidebarBackground: Color { Color(NSColor.controlBackgroundColor).opacity(0.7) }
+    static var appStatusSuccess: Color { Color(hex: "3FB950") }
+    static var appStatusFailure: Color { Color(hex: "F85149") }
+    static var appStatusPending: Color { Color(hex: "D29922") }
 }
 
 struct VisualEffectView: NSViewRepresentable {

@@ -48,6 +48,10 @@ final class PullRequestStore: ObservableObject {
         waitingMyReview.count + readyToMerge.count
     }
 
+    var settingsMergeMethod: MergeMethod {
+        settings.mergeMethod
+    }
+
     private let client: GitHubClient?
     private let settings: GitHubSettings
     private let now: () -> Date
