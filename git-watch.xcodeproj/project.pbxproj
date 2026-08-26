@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0444076E94C6FAF6442A806E /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343BE1281687B67CDE110C40 /* PanelView.swift */; };
 		05A04315FDC472F1250C867D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00BB43EE71BFDF3DAE4B3F72 /* main.swift */; };
 		16E9CD368AF029274E3A251D /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6A6D097FAC20894A8D5D50 /* UpdateModels.swift */; };
 		1FF056A29821F6F66C977B70 /* LaunchAtLoginSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A131E943DC6E5E4362C6F0A0 /* LaunchAtLoginSettings.swift */; };
@@ -61,6 +62,7 @@
 		1AF0024CFF4CDB7E2608320E /* SettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		2D2915639A1012B0850E78E7 /* UpdaterAppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdaterAppDelegate.swift; sourceTree = "<group>"; };
 		2E2E563209E0D1BCD0964F4C /* git-watch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "git-watch.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		343BE1281687B67CDE110C40 /* PanelView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PanelView.swift; sourceTree = "<group>"; };
 		3558F5B1595EF788190160A0 /* AppVersionInfo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppVersionInfo.swift; sourceTree = "<group>"; };
 		4119A00AEB0F5C205F28F046 /* UpdateManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdateManager.swift; sourceTree = "<group>"; };
 		4A6A6D097FAC20894A8D5D50 /* UpdateModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdateModels.swift; sourceTree = "<group>"; };
@@ -110,6 +112,7 @@
 			children = (
 				EBED6209817392246CA2BD22 /* Colors.swift */,
 				1AF0024CFF4CDB7E2608320E /* SettingsView.swift */,
+				343BE1281687B67CDE110C40 /* PanelView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -356,6 +359,7 @@
 				16E9CD368AF029274E3A251D /* UpdateModels.swift in Sources */,
 				CE392614240C24C2636077DE /* Colors.swift in Sources */,
 				C2FF399EF8B71D0C3D5A8D76 /* SettingsView.swift in Sources */,
+				0444076E94C6FAF6442A806E /* PanelView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

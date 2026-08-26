@@ -5,3 +5,4 @@ dist/
 DerivedData/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 xcuserdata/
+default.profraw

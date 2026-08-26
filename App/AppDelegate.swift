@@ -9,13 +9,58 @@ enum SettingsWindowMetrics {
     static let minHeight: CGFloat = 280
 }
 
+enum PanelMetrics {
+    static let selectedTabDefaultsKey = "selectedTab"
+    static let defaultWidth: CGFloat = 420
+    static let defaultHeight: CGFloat = 520
+    static let minWidth: CGFloat = 340
+    static let minHeight: CGFloat = 460
+}
+
+extension Notification.Name {
+    static let gitwatchPanelDidOpen = Notification.Name("gitwatchPanelDidOpen")
+    static let gitwatchPanelTabDidChange = Notification.Name("gitwatchPanelTabDidChange")
+}
+
+final class InputPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+
+    override func zoom(_ sender: Any?) {
+        guard let screen = screen ?? NSScreen.main else { return }
+        let current = frame
+        let target = NSRect(
+            x: current.origin.x,
+            y: screen.visibleFrame.maxY - current.height * 2,
+            width: current.width * 1.5,
+            height: current.height * 2
+        )
+        let isZoomed = abs(frame.width - target.width) < 2 && abs(frame.height - target.height) < 2
+        if isZoomed {
+            setFrame(
+                NSRect(
+                    x: current.origin.x,
+                    y: screen.visibleFrame.maxY - PanelMetrics.defaultHeight,
+                    width: PanelMetrics.defaultWidth,
+                    height: PanelMetrics.defaultHeight
+                ),
+                display: true,
+                animate: true
+            )
+        } else {
+            setFrame(target, display: true, animate: true)
+        }
+    }
+}
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private var panel: NSPanel?
+    private var panel: InputPanel?
     private var settingsWindow: NSWindow?
     private var hasPresentedSettingsWindow = false
     private var cancellables = Set<AnyCancellable>()
+    private var eventMonitor: Any?
     private let themeManager = ThemeManager()
     private let launchAtLoginSettings = LaunchAtLoginSettings()
     private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "Re-Jacky", repoName: "git-watch"))
@@ -25,6 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu()
         setupThemeObservation()
         setupStatusItem()
+        panel = makePanel()
         launchAtLoginSettings.refresh()
 
         Task { @MainActor [weak self] in
@@ -52,10 +98,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc func togglePanel() {
+    @objc private func togglePanel() {
+        if let panel, panel.isVisible {
+            closePanel()
+        } else {
+            openPanel()
+        }
     }
 
     func openPanelIfPossible() {
+        guard let panel, !panel.isVisible else { return }
+        openPanel()
+    }
+
+    private func openPanel() {
+        let p: InputPanel
+        if let existing = panel {
+            p = existing
+        } else {
+            p = makePanel()
+            panel = p
+        }
+
+        if let button = statusItem.button,
+           let screen = button.window?.screen ?? NSScreen.main {
+            let buttonRect = button.convert(button.bounds, to: nil)
+            let screenRect = button.window?.convertToScreen(buttonRect) ?? .zero
+            let x = screenRect.midX - p.frame.width / 2
+            let y = screenRect.minY - p.frame.height - 4
+            let clamped = max(screen.visibleFrame.minX, min(x, screen.visibleFrame.maxX - p.frame.width))
+            p.setFrameOrigin(NSPoint(x: clamped, y: y))
+        }
+
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        p.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self] in
+            if self?.settingsWindow?.isVisible != true {
+                NSApp.setActivationPolicy(.accessory)
+            }
+        }
+        NotificationCenter.default.post(name: .gitwatchPanelDidOpen, object: nil)
+
+        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            self?.closePanel()
+        }
+    }
+
+    private func closePanel() {
+        panel?.orderOut(nil)
+        if settingsWindow?.isVisible != true {
+            NSApp.setActivationPolicy(.accessory)
+        }
+        if let m = eventMonitor {
+            NSEvent.removeMonitor(m)
+            eventMonitor = nil
+        }
+    }
+
+    private func makePanel() -> InputPanel {
+        let p = InputPanel(
+            contentRect: NSRect(x: 0, y: 0, width: PanelMetrics.defaultWidth, height: PanelMetrics.defaultHeight),
+            styleMask: [.borderless, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        p.isFloatingPanel = true
+        p.level = .floating
+        p.collectionBehavior = [.canJoinAllSpaces, .transient]
+        p.isMovableByWindowBackground = false
+        p.isReleasedWhenClosed = false
+        p.hidesOnDeactivate = false
+        p.minSize = NSSize(width: PanelMetrics.minWidth, height: PanelMetrics.minHeight)
+        p.appearance = themeManager.currentTheme.nsAppearance
+        p.backgroundColor = .clear
+        p.isOpaque = false
+
+        let vc = NSHostingController(
+            rootView: PanelView()
+                .environmentObject(themeManager)
+        )
+        vc.view.appearance = themeManager.currentTheme.nsAppearance
+        p.contentViewController = vc
+
+        if let contentView = p.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.cornerRadius = 12
+            contentView.layer?.masksToBounds = true
+        }
+        return p
     }
 
     private func setupThemeObservation() {
@@ -71,14 +202,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsWindow?.appearance = themeManager.currentTheme.nsAppearance
         settingsWindow?.contentViewController?.view.appearance = themeManager.currentTheme.nsAppearance
         settingsWindow?.contentView?.needsDisplay = true
+        panel?.appearance = themeManager.currentTheme.nsAppearance
+        panel?.contentViewController?.view.appearance = themeManager.currentTheme.nsAppearance
+        panel?.contentView?.needsDisplay = true
     }
 
     private func showContextMenu() {
         let menu = NSMenu()
-        let openItem = NSMenuItem(title: "Open", action: #selector(togglePanel), keyEquivalent: "")
+        let openTitle = (panel?.isVisible == true) ? "Close" : "Open"
+        let openItem = NSMenuItem(title: openTitle, action: #selector(togglePanel), keyEquivalent: "")
         openItem.target = self
         menu.addItem(openItem)
         let refreshItem = NSMenuItem(title: "Refresh", action: nil, keyEquivalent: "")
+        refreshItem.target = self
         menu.addItem(refreshItem)
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
         settingsItem.target = self
