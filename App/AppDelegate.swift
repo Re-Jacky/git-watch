@@ -31,9 +31,9 @@ final class InputPanel: NSPanel {
         let current = frame
         let target = NSRect(
             x: current.origin.x,
-            y: screen.visibleFrame.maxY - current.height * 2,
-            width: current.width * 1.5,
-            height: current.height * 2
+            y: screen.visibleFrame.maxY - PanelMetrics.defaultHeight * 2,
+            width: PanelMetrics.defaultWidth * 1.5,
+            height: PanelMetrics.defaultHeight * 2
         )
         let isZoomed = abs(frame.width - target.width) < 2 && abs(frame.height - target.height) < 2
         if isZoomed {
