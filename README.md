@@ -131,10 +131,9 @@ rm -rf git-watch.xcodeproj && ruby scripts/create_project.rb   # full regenerati
 ## Releases
 
 1. Bump `MARKETING_VERSION` in `git-watch.xcodeproj/project.pbxproj`
-2. Push to GitHub
-3. Run the **Release** workflow manually from the Actions tab
+2. Push to `main`
 
-The workflow builds the DMG, creates a `v<version>` tag/release (fails if the tag exists), and uploads the DMG + updater zip with checksum notes.
+That's it — the Release workflow fires automatically on any push touching `project.pbxproj` (or can be run manually from the Actions tab). It builds the DMG, creates a `v<version>` tag/release (fails if the tag exists), and uploads the DMG + updater zip with checksum notes.
 
 ---
 

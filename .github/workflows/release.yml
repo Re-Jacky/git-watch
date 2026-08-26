@@ -1,6 +1,12 @@
 name: Release
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'git-watch.xcodeproj/project.pbxproj'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 permissions:
