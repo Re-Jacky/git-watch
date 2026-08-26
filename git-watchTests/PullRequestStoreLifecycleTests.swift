@@ -129,6 +129,34 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         XCTAssertEqual(transport.callCount, 1)
     }
 
+    func testForceRefreshDuringInFlightPreservesSlotRegistration() async {
+        let gated = GatedTransport()
+        let ghCLI = FakeGHCLI()
+        let settings = GitHubSettings(
+            personalAccessToken: "pat-token", ghCLI: ghCLI, userDefaults: UserDefaultsFactory.make()
+        )
+        let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
+        provider.resolve()
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: gated), settings: settings)
+        let a = Task { await store.refresh(force: true) }
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(gated.callCount, 1)
+        XCTAssertEqual(gated.parkedCount, 1)
+        let b = Task { await store.refresh(force: true) }
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(gated.callCount, 2)
+        XCTAssertEqual(gated.parkedCount, 2)
+        gated.releaseOldest()
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        let j = Task { await store.refresh(force: false) }
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(gated.callCount, 2)
+        XCTAssertEqual(gated.parkedCount, 1)
+        gated.releaseAll()
+        await (a.value, b.value, j.value)
+        XCTAssertEqual(store.status, .live)
+    }
+
     func testApproveMarksInFlightClearsErrorsThenRefreshes() async {
         let transport = FakeTransport()
         transport.stubbedData = DashboardFixture.make()

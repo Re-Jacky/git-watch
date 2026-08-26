@@ -53,6 +53,7 @@ final class PullRequestStore: ObservableObject {
     private let now: () -> Date
     private let scheduler: RefreshScheduling
     private var refreshTask: Task<Void, Never>?
+    private var refreshGeneration = 0
 
     init(
         client: GitHubClient?,
@@ -96,13 +97,18 @@ final class PullRequestStore: ObservableObject {
             }
             existing.cancel()
             refreshTask = nil
+            refreshGeneration += 1
         }
+        refreshGeneration += 1
+        let generation = refreshGeneration
         let task = Task { [weak self] in
             _ = await self?.performRefresh()
         }
         refreshTask = task
         await task.value
-        refreshTask = nil
+        if refreshGeneration == generation {
+            refreshTask = nil
+        }
     }
 
     private func performRefresh() async {

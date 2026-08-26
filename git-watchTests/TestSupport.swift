@@ -36,6 +36,32 @@ final class FakeTransport: GitHubTransporting {
     """#.utf8)
 }
 
+final class GatedTransport: GitHubTransporting {
+    private(set) var callCount = 0
+    private var parked: [CheckedContinuation<Void, Never>] = []
+
+    var parkedCount: Int { parked.count }
+
+    func post(_ query: String, variables: [String: Any], token: String) async throws -> Data {
+        callCount += 1
+        await withCheckedContinuation { continuation in
+            parked.append(continuation)
+        }
+        return FakeTransport.emptyDashboard
+    }
+
+    func releaseOldest() {
+        guard parked.isEmpty == false else { return }
+        parked.removeFirst().resume()
+    }
+
+    func releaseAll() {
+        let all = parked
+        parked.removeAll()
+        for continuation in all { continuation.resume() }
+    }
+}
+
 final class FakeScheduler: RefreshScheduling {
     private(set) var scheduledInterval: TimeInterval?
     private(set) var handler: (() -> Void)?
