@@ -15,6 +15,16 @@ enum MergeStateStatus: String, Codable {
     case hasHooks = "HAS_HOOKS"
     case draft = "DRAFT"
     case unknown = "UNKNOWN"
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .unknown
+            return
+        }
+        let raw = try container.decode(String.self)
+        self = MergeStateStatus(rawValue: raw) ?? .unknown
+    }
 }
 
 enum ViewerPermission: String, Codable {
@@ -23,6 +33,16 @@ enum ViewerPermission: String, Codable {
     case write = "WRITE"
     case read = "READ"
     case unknown = "UNKNOWN"
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .unknown
+            return
+        }
+        let raw = try container.decode(String.self)
+        self = ViewerPermission(rawValue: raw) ?? .unknown
+    }
 }
 
 enum CheckOutcome: String {

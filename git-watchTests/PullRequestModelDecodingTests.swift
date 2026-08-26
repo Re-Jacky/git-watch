@@ -92,4 +92,35 @@ final class PullRequestModelDecodingTests: XCTestCase {
         XCTAssertEqual(MergeMethod.squash.graphqlName, "SQUASH")
         XCTAssertEqual(MergeMethod.rebase.graphqlName, "REBASE")
     }
+
+    func testUnknownEnumValuesFallBackToUnknown() throws {
+        let body = """
+        {
+          "data": {
+            "viewer": { "login": "rejacky" },
+            "authored": {
+              "nodes": [
+                {
+                  "id": "PRR_3", "number": 300, "title": "Future enum values",
+                  "url": "https://github.com/acme/infra/pull/300",
+                  "createdAt": "2026-08-26T07:00:00Z",
+                  "author": { "login": "teammate" },
+                  "repository": { "nameWithOwner": "acme/infra", "viewerPermission": "SOMETHING_NEW" },
+                  "reviewDecision": null,
+                  "mergeable": "MERGEABLE",
+                  "mergeStateStatus": "SOME_FUTURE_STATE",
+                  "commits": { "nodes": [] }
+                }
+              ],
+              "pageInfo": { "hasNextPage": false, "endCursor": null }
+            },
+            "reviewRequested": { "nodes": [], "pageInfo": { "hasNextPage": false, "endCursor": null } }
+          }
+        }
+        """
+        let snapshot = try GitHubClient.decodeDashboardResponse(Data(body.utf8))
+        XCTAssertEqual(snapshot.authored.count, 1)
+        XCTAssertEqual(snapshot.authored[0].mergeStateStatus, .unknown)
+        XCTAssertEqual(snapshot.authored[0].viewerPermission, .unknown)
+    }
 }
