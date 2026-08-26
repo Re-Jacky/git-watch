@@ -81,3 +81,31 @@ struct PullRequestSummary: Identifiable, Equatable {
         return stateOK && permissionOK && mergeable
     }
 }
+
+struct PRGroupings: Equatable {
+    let mine: [PullRequestSummary]
+    let waitingMyReview: [PullRequestSummary]
+    let readyToMerge: [PullRequestSummary]
+
+    var actionableCount: Int {
+        waitingMyReview.count + readyToMerge.count
+    }
+}
+
+enum PullRequestClassifier {
+    static func group(
+        authored: [PullRequestSummary],
+        reviewRequested: [PullRequestSummary]
+    ) -> PRGroupings {
+        let sortedMine = authored.sorted { $0.createdAt > $1.createdAt }
+        let authoredIDs = Set(authored.map(\.id))
+        let nonMine = reviewRequested
+            .filter { authoredIDs.contains($0.id) == false }
+            .sorted { $0.createdAt > $1.createdAt }
+        return PRGroupings(
+            mine: sortedMine,
+            waitingMyReview: nonMine.filter { $0.canMerge == false },
+            readyToMerge: nonMine.filter { $0.canMerge }
+        )
+    }
+}

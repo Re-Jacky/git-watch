@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0444076E94C6FAF6442A806E /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 343BE1281687B67CDE110C40 /* PanelView.swift */; };
 		05A04315FDC472F1250C867D /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00BB43EE71BFDF3DAE4B3F72 /* main.swift */; };
+		159B28DE37529CAA881F854E /* PullRequestClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D4BF92E5A3DFB18F3AAC7E /* PullRequestClassifierTests.swift */; };
 		16E9CD368AF029274E3A251D /* UpdateModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A6A6D097FAC20894A8D5D50 /* UpdateModels.swift */; };
 		1FF056A29821F6F66C977B70 /* LaunchAtLoginSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = A131E943DC6E5E4362C6F0A0 /* LaunchAtLoginSettings.swift */; };
 		230D3B48B932479A6F7D12E7 /* GitHubClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6FBE668FD9EB164E23978B7 /* GitHubClient.swift */; };
@@ -86,6 +87,7 @@
 		B83BC0152C81A48A32F7A09B /* GitHubQueries.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GitHubQueries.swift; sourceTree = "<group>"; };
 		BFB54E10C7B103CAFA810B95 /* UpdateInstallPlanner.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdateInstallPlanner.swift; sourceTree = "<group>"; };
 		C5C82AAAD3ABF1A92981FEA5 /* GitWatchUpdater.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GitWatchUpdater.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C7D4BF92E5A3DFB18F3AAC7E /* PullRequestClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PullRequestClassifierTests.swift; sourceTree = "<group>"; };
 		CEB1102D300FEDD3B3DAB4F0 /* UpdaterInstaller.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UpdaterInstaller.swift; sourceTree = "<group>"; };
 		E6FBE668FD9EB164E23978B7 /* GitHubClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GitHubClient.swift; sourceTree = "<group>"; };
 		E7AF310AC221A97642A5BCB7 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -222,6 +224,7 @@
 				F98FD282AD23E3303402A325 /* TestSupport.swift */,
 				30CD92DF8FD9BD83F78C2A96 /* GitHubAuthTests.swift */,
 				9D1E077924F3E55BDC393BA0 /* PullRequestModelDecodingTests.swift */,
+				C7D4BF92E5A3DFB18F3AAC7E /* PullRequestClassifierTests.swift */,
 			);
 			name = "git-watchTests";
 			path = "git-watchTests";
@@ -368,6 +371,7 @@
 				ED67E9B1A3518328FA9E02FF /* TestSupport.swift in Sources */,
 				781F67C06749C8CA1994E130 /* GitHubAuthTests.swift in Sources */,
 				398EB1D244E77376CBB093D7 /* PullRequestModelDecodingTests.swift in Sources */,
+				159B28DE37529CAA881F854E /* PullRequestClassifierTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
