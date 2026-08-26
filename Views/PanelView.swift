@@ -171,12 +171,21 @@ private struct ReviewMergeListView: View {
                             ForEach(waitingMyReview) { pr in
                                 PullRequestRowView(
                                     summary: pr,
-                                    action: .approve,
+                                    action: rowActionForWaitingPR(pr),
                                     inFlight: inFlight.contains(pr.id),
                                     errorMessage: errors[pr.id],
-                                    onAction: { Task { await store.approve(pr) } },
+                                    onAction: {
+                                        Task {
+                                            if store.canOfferMergeInPlace(for: pr) {
+                                                await store.merge(pr)
+                                            } else {
+                                                await store.approve(pr)
+                                            }
+                                        }
+                                    },
                                     onDismiss: { store.dismiss(pr) },
-                                    showsAuthor: true
+                                    showsAuthor: true,
+                                    locallyApproved: store.locallyApprovedIDs.contains(pr.id)
                                 )
                             }
                         }
@@ -199,6 +208,16 @@ private struct ReviewMergeListView: View {
                 }
             }
         }
+    }
+
+    private func rowActionForWaitingPR(_ pr: PullRequestSummary) -> PullRequestRowView.RowAction {
+        if store.canOfferMergeInPlace(for: pr) {
+            return .merge(store.settingsMergeMethod)
+        }
+        if store.shouldOfferApprove(for: pr) {
+            return .approve
+        }
+        return .none
     }
 
     private func sectionHeader(_ text: String) -> some View {

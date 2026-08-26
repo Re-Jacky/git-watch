@@ -8,6 +8,7 @@ struct PullRequestRowView: View {
     let onAction: () -> Void
     var onDismiss: (() -> Void)? = nil
     var showsAuthor: Bool = false
+    var locallyApproved: Bool = false
 
     enum RowAction: Equatable {
         case none
@@ -157,6 +158,9 @@ struct PullRequestRowView: View {
     }
 
     private var reviewChipText: (text: String, color: Color)? {
+        if locallyApproved {
+            return ("Approved", Color.appStatusSuccess)
+        }
         switch summary.reviewDecision {
         case .approved:
             return ("Approved", Color.appStatusSuccess)

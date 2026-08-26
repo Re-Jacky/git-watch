@@ -236,6 +236,78 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         return store
     }
 
+    func testSuccessfulApproveMarksPRAsLocallyApproved() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+
+        transport.stubbedError = nil
+        await store.approve(.placeholder(id: "r1"))
+        XCTAssertTrue(store.locallyApprovedIDs.contains("r1"))
+        XCTAssertFalse(store.shouldOfferApprove(for: .placeholder(id: "r1")))
+    }
+
+    func testLocallyApprovedPRWithGreenStateCanOfferMergeInPlace() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+
+        await store.approve(.placeholder(id: "r1"))
+        let greenVersion = PullRequestSummary.placeholder(id: "r1", state: .clean, permission: .write, mergeable: true)
+        XCTAssertFalse(store.shouldOfferApprove(for: greenVersion))
+        XCTAssertTrue(store.canOfferMergeInPlace(for: greenVersion))
+        XCTAssertFalse(store.canOfferMergeInPlace(for: .placeholder(id: "r1")))
+    }
+
+    func testAuthoritativeApprovalAlsoSuppressesApproveButton() async {
+        let store = makeStore(transport: FakeTransport())
+        let approved = PullRequestSummary(
+            id: "r9", number: 9, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/9")!, authorLogin: "a",
+            createdAt: Date(), reviewDecision: .approved, mergeable: true,
+            mergeStateStatus: .blocked, viewerPermission: .read, checks: []
+        )
+        XCTAssertFalse(store.shouldOfferApprove(for: approved))
+        XCTAssertFalse(store.canOfferMergeInPlace(for: approved))
+    }
+
+    func testFailedApproveDoesNotMarkLocallyApproved() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+
+        transport.stubbedError = nil
+        transport.failMutations = true
+        await store.approve(.placeholder(id: "r1"))
+        XCTAssertTrue(store.actionErrors["r1"] != nil)
+        XCTAssertFalse(store.locallyApprovedIDs.contains("r1"))
+        XCTAssertTrue(store.shouldOfferApprove(for: .placeholder(id: "r1")))
+    }
+
+    func testLocallyApprovedFlagsClearWhenPRLeavesDashboard() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+        await store.approve(.placeholder(id: "r1"))
+        XCTAssertTrue(store.locallyApprovedIDs.contains("r1"))
+
+        transport.stubbedData = FakeTransport.emptyDashboard
+        await store.refresh(force: true)
+        XCTAssertTrue(store.locallyApprovedIDs.isEmpty)
+    }
+
     func testAutoModeDefaultsToApproveOnly() async {
         let transport = FakeTransport()
         transport.stubbedData = DashboardFixture.make(

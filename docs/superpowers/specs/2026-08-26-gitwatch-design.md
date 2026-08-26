@@ -168,3 +168,7 @@ Optional full automation toggle (`github.autoModeEnabled`, default off; Settings
 ### 2026-08-26 — Auto Mode scopes
 
 Auto mode gains per-action scopes: `github.autoApprove` (default **on**) and `github.autoMerge` (default off), shown as checkboxes under the Auto Mode toggle in Settings → GitHub (visible only while the master toggle is on). The store's approve/merge phases each gate on their scope flag. The panel banner text adapts to the selected scopes; a warning appears in Settings when Auto is on with no scopes selected.
+
+### 2026-08-26 — Post-approve row behavior
+
+Approving a PR marks it locally approved (`locallyApprovedIDs`, in-memory): the Approve button disappears immediately (chip shows "Approved"), GitHub search-index lag notwithstanding. If the PR's data then satisfies merge conditions, the waiting row offers **Merge** in place; once GitHub reports it ready it moves to the Ready section normally. A delayed catch-up refresh (~4 s) after each successful approve compensates for search indexing lag. Flags clear when the PR leaves the dashboard or a fresh snapshot authoritatively reports state.

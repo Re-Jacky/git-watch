@@ -46,6 +46,7 @@ final class PullRequestStore: ObservableObject {
     @Published private(set) var actionErrors: [String: String] = [:]
     @Published private(set) var inFlightActionIDs: Set<String> = []
     @Published private(set) var dismissedIDs: Set<String> = []
+    @Published private(set) var locallyApprovedIDs: Set<String> = []
 
     var actionableCount: Int {
         waitingMyReview.count + readyToMerge.count
@@ -53,6 +54,16 @@ final class PullRequestStore: ObservableObject {
 
     var totalCount: Int {
         mine.count + waitingMyReview.count + readyToMerge.count
+    }
+
+    func shouldOfferApprove(for summary: PullRequestSummary) -> Bool {
+        locallyApprovedIDs.contains(summary.id) == false
+            && summary.reviewDecision != .approved
+    }
+
+    func canOfferMergeInPlace(for summary: PullRequestSummary) -> Bool {
+        (locallyApprovedIDs.contains(summary.id) || summary.reviewDecision == .approved)
+            && summary.canMerge
     }
 
     var settingsMergeMethod: MergeMethod {
@@ -69,6 +80,7 @@ final class PullRequestStore: ObservableObject {
     private var refreshGeneration = 0
     private var isAutoProcessing = false
     private var autoModeCancellable: AnyCancellable?
+    private var catchUpTask: Task<Void, Never>?
 
     init(
         client: GitHubClient?,
@@ -96,6 +108,7 @@ final class PullRequestStore: ObservableObject {
     deinit {
         scheduler.invalidate()
         refreshTask?.cancel()
+        catchUpTask?.cancel()
     }
 
     nonisolated func startAutomaticRefresh(interval: TimeInterval) {
@@ -190,6 +203,12 @@ final class PullRequestStore: ObservableObject {
     private func apply(snapshot: DashboardSnapshot, at date: Date) {
         latestGroupings = PullRequestClassifier.group(authored: snapshot.authored, reviewRequested: snapshot.reviewRequested)
         republish()
+        let visibleIDs = Set(
+            latestGroupings.mine.map(\.id)
+                + latestGroupings.waitingMyReview.map(\.id)
+                + latestGroupings.readyToMerge.map(\.id)
+        )
+        locallyApprovedIDs = locallyApprovedIDs.intersection(visibleIDs)
         viewerLogin = snapshot.viewerLogin
         lastRefreshedAt = date
         actionErrors.removeAll()
@@ -217,25 +236,40 @@ final class PullRequestStore: ObservableObject {
     }
 
     func approve(_ summary: PullRequestSummary) async {
-        await runAction(summary) { try await $0.approve(pullRequestID: summary.id) }
+        let succeeded = await runAction(summary) { try await $0.approve(pullRequestID: summary.id) }
+        if succeeded {
+            locallyApprovedIDs.insert(summary.id)
+            scheduleCatchUpRefresh()
+        }
     }
 
     func merge(_ summary: PullRequestSummary) async {
-        let method = settings.mergeMethod
-        await runAction(summary) { try await $0.merge(pullRequestID: summary.id, method: method) }
+        _ = await runAction(summary) { client in
+            try await client.merge(pullRequestID: summary.id, method: self.settings.mergeMethod)
+        }
+    }
+
+    private func scheduleCatchUpRefresh() {
+        catchUpTask?.cancel()
+        catchUpTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard Task.isCancelled == false else { return }
+            await self?.refresh(force: false)
+        }
     }
 
     private func runAction(
         _ summary: PullRequestSummary,
         operation: @escaping (GitHubClient) async throws -> Void
-    ) async {
-        guard let client else { return }
+    ) async -> Bool {
+        guard let client else { return false }
         actionErrors[summary.id] = nil
         inFlightActionIDs.insert(summary.id)
         defer { inFlightActionIDs.remove(summary.id) }
         do {
             try await operation(client)
             await performRefresh()
+            return true
         } catch let error as GitHubClientError {
             switch error {
             case .unauthorized:
@@ -248,5 +282,6 @@ final class PullRequestStore: ObservableObject {
         } catch {
             actionErrors[summary.id] = error.localizedDescription
         }
+        return false
     }
 }
