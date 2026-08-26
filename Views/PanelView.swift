@@ -4,7 +4,6 @@ struct PanelView: View {
     @AppStorage("selectedTab") private var selectedTab = 0
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var store: PullRequestStore
-    @EnvironmentObject var updateManager: UpdateManager
 
     var body: some View {
         ZStack {
@@ -12,20 +11,12 @@ struct PanelView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                ZStack {
-                    Picker("", selection: $selectedTab) {
-                        Text("Mine \(tabCount(store.mine.count))").tag(0)
-                        Text("Review & Merge \(tabCount(store.actionableCount))").tag(1)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-
-                    HStack {
-                        Spacer()
-                        PanelVersionHeaderView(versionInfo: AppVersionInfo())
-                            .environmentObject(updateManager)
-                    }
+                Picker("", selection: $selectedTab) {
+                    Text("Mine \(tabCount(store.mine.count))").tag(0)
+                    Text("Review & Merge \(tabCount(store.actionableCount))").tag(1)
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
                 .padding(.bottom, 10)
@@ -210,6 +201,8 @@ struct PanelFooterView: View {
     let isRefreshing: Bool
     let onRefresh: () -> Void
 
+    @EnvironmentObject private var updateManager: UpdateManager
+
     var body: some View {
         HStack(spacing: 8) {
             if isRefreshing {
@@ -224,7 +217,11 @@ struct PanelFooterView: View {
                 .foregroundColor(.appSecondaryText)
                 .monospacedDigit()
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+
+            PanelVersionHeaderView(versionInfo: AppVersionInfo())
+
+            Spacer(minLength: 8)
 
             Button(action: onRefresh) {
                 Image(systemName: "arrow.clockwise")
