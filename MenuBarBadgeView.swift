@@ -7,7 +7,7 @@ final class MenuBarBadgeController {
 
     init(statusItem: NSStatusItem) {
         self.statusItem = statusItem
-        self.hostingView = NSHostingView(rootView: MenuBarBadgeView(count: 0))
+        self.hostingView = NSHostingView(rootView: MenuBarBadgeView(count: 0, autoMode: false))
         guard let button = statusItem.button else { return }
         button.subviews.forEach { $0.removeFromSuperview() }
         hostingView.translatesAutoresizingMaskIntoConstraints = true
@@ -16,8 +16,8 @@ final class MenuBarBadgeController {
         button.addSubview(hostingView)
     }
 
-    func update(count: Int) {
-        hostingView.rootView = MenuBarBadgeView(count: count)
+    func update(count: Int, autoMode: Bool) {
+        hostingView.rootView = MenuBarBadgeView(count: count, autoMode: autoMode)
         statusItem.length = hostingView.fittingSize.width
         if let button = statusItem.button {
             hostingView.frame = button.bounds
@@ -27,6 +27,11 @@ final class MenuBarBadgeController {
 
 struct MenuBarBadgeView: View {
     let count: Int
+    let autoMode: Bool
+
+    private var tint: Color {
+        autoMode ? Color(hex: "58A6FF") : .primary
+    }
 
     var body: some View {
         HStack(spacing: 4) {
@@ -35,16 +40,18 @@ struct MenuBarBadgeView: View {
                 .frame(width: 18, height: 18)
                 .background(
                     Circle()
-                        .strokeBorder(Color.primary.opacity(0.85), lineWidth: 1.25)
+                        .fill(autoMode ? tint : Color.clear)
+                        .strokeBorder(autoMode ? Color.clear : Color.primary.opacity(0.85), lineWidth: 1.25)
                 )
+                .foregroundColor(autoMode ? .white : .primary)
             if count > 0 {
                 Text("\(count)")
                     .font(.system(size: 12, weight: .bold))
                     .monospacedDigit()
+                    .foregroundColor(tint)
             }
         }
-        .foregroundColor(.primary)
         .padding(.horizontal, 2)
-        .accessibilityLabel("GitWatch" + (count > 0 ? ", \(count) pull requests" : ""))
+        .accessibilityLabel("GitWatch" + (autoMode ? ", Auto mode active" : "") + (count > 0 ? ", \(count) pull requests" : ""))
     }
 }

@@ -96,10 +96,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func observeBadgeCount() {
         Publishers.CombineLatest3(pullRequestStore.$mine, pullRequestStore.$waitingMyReview, pullRequestStore.$readyToMerge)
-            .map { $0.count + $1.count + $2.count }
+            .combineLatest(githubSettings.$autoModeEnabled)
+            .map { ($0.0.count + $0.1.count + $0.2.count, $1) }
             .receive(on: RunLoop.main)
-            .sink { [weak self] count in
-                self?.badgeController?.update(count: count)
+            .sink { [weak self] count, autoMode in
+                self?.badgeController?.update(count: count, autoMode: autoMode)
             }
             .store(in: &cancellables)
     }
@@ -107,7 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         guard let button = statusItem.button else { return }
         badgeController = MenuBarBadgeController(statusItem: statusItem)
-        badgeController?.update(count: 0)
+        badgeController?.update(count: 0, autoMode: githubSettings.autoModeEnabled)
         button.action = #selector(handleClick)
         button.target = self
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -120,6 +121,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             togglePanel()
         }
+    }
+
+    @objc private func toggleAutoMode() {
+        githubSettings.autoModeEnabled.toggle()
     }
 
     @objc private func refreshNow() {
@@ -210,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(themeManager)
                 .environmentObject(pullRequestStore)
                 .environmentObject(updateManager)
+                .environmentObject(githubSettings)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
         p.contentViewController = vc
@@ -250,6 +256,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshNow), keyEquivalent: "")
         refreshItem.target = self
         menu.addItem(refreshItem)
+        let autoItem = NSMenuItem(title: "Auto Mode", action: #selector(toggleAutoMode), keyEquivalent: "")
+        autoItem.target = self
+        autoItem.state = githubSettings.autoModeEnabled ? .on : .off
+        menu.addItem(autoItem)
         let settingsItem = NSMenuItem(title: "Settings...", action: #selector(showSettings), keyEquivalent: ",")
         settingsItem.target = self
         menu.addItem(settingsItem)

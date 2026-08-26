@@ -157,3 +157,10 @@ Coverage:
 3. Settings GitHub sidebar icon changed to `key` — the previous symbol does not resolve on this OS build.
 4. Menu bar badge counts **all live PRs involving you** (`totalCount` = Mine + Waiting-for-your-review + Ready-to-merge). Per-tab labels keep their own counts.
 5. Per-PR **dismiss** (✕ on each row): hides the PR from every list and from all counts, persisted under `github.dismissedPRIds`; Settings → GitHub offers "Show Dismissed PRs (\(n))" to restore.
+
+### 2026-08-26 — Auto Mode
+
+Optional full automation toggle (`github.autoModeEnabled`, default off; Settings → GitHub or right-click menu "Auto Mode"):
+- **Approve**: every PR in Waiting-for-your-review is approved automatically, regardless of CI state, including re-approval after an author pushes changes and a stale-review dismissal flips the PR back to review-required. Failed attempts surface as the row's inline error and retry on the next 5-minute cycle.
+- **Merge**: every Ready-for-you-to-merge PR (already requires CLEAN/HAS_HOOKS + write permission + mergeable) is merged with the configured default method.
+- Processing runs after every refresh cycle and immediately when toggled on. While active: menu bar badge renders as a solid accent-blue disc with knocked-out glyph and blue count; panel shows an info banner under the tabs describing the behavior.

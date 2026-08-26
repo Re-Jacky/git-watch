@@ -21,12 +21,22 @@ enum UserDefaultsFactory {
 final class FakeTransport: GitHubTransporting {
     var stubbedData: Data?
     var stubbedError: Error?
+    var failMutations = false
     private(set) var callCount = 0
+    private(set) var recordedQueries: [String] = []
 
     func post(_ query: String, variables: [String: Any], token: String) async throws -> Data {
         callCount += 1
+        recordedQueries.append(query)
+        if failMutations, query.contains("addPullRequestReview") || query.contains("mergePullRequest") {
+            throw GitHubClientError.api(["mutation rejected"])
+        }
         if let error = stubbedError { throw error }
         return stubbedData ?? Self.emptyDashboard
+    }
+
+    func mutationCallCount(containing marker: String) -> Int {
+        recordedQueries.filter { $0.contains(marker) }.count
     }
 
     static let emptyDashboard = Data(#"""

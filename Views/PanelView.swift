@@ -4,6 +4,7 @@ struct PanelView: View {
     @AppStorage("selectedTab") private var selectedTab = 0
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var store: PullRequestStore
+    @EnvironmentObject var githubSettings: GitHubSettings
 
     var body: some View {
         ZStack {
@@ -23,6 +24,22 @@ struct PanelView: View {
 
                 Divider()
                     .background(Color.appDivider)
+
+                if githubSettings.autoModeEnabled {
+                    HStack(spacing: 6) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color(hex: "58A6FF"))
+                        Text("Auto mode is on — new review requests are approved automatically and green PRs you can merge are merged automatically.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.appPrimaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(hex: "58A6FF").opacity(0.12))
+                }
 
                 ZStack {
                     MineListView(items: store.mine, errors: store.actionErrors, inFlight: store.inFlightActionIDs, store: store)

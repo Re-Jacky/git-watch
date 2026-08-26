@@ -231,6 +231,122 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         return PullRequestStore(client: client, settings: resolvedSettings, userDefaults: defaults)
     }
 
+    private func makeAutoStore(transport: FakeTransport) -> PullRequestStore {
+        let (store, _) = makeInstrumentedAutoStore(transport: transport)
+        return store
+    }
+
+    private func makeInstrumentedAutoStore(transport: FakeTransport) -> (PullRequestStore, GitHubSettings) {
+        let ghCLI = FakeGHCLI()
+        let resolvedSettings = GitHubSettings(
+            personalAccessToken: "pat-token",
+            ghCLI: ghCLI,
+            userDefaults: UserDefaultsFactory.make()
+        )
+        resolvedSettings.autoModeEnabled = true
+        let provider = GitHubAuthProvider(settings: resolvedSettings, ghCLI: ghCLI)
+        provider.resolve()
+        let client = GitHubClient(provider: provider, transport: transport)
+        return (PullRequestStore(client: client, settings: resolvedSettings), resolvedSettings)
+    }
+
+    func testAutoModeDisabledDoesNotMutateAnything() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [
+                .placeholder(id: "r1"),
+                .placeholder(id: "r2", state: .clean, permission: .write, mergeable: true)
+            ]
+        )
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 0)
+        XCTAssertEqual(transport.mutationCallCount(containing: "mergePullRequest"), 0)
+    }
+
+    func testAutoModeApprovesWaitingAndMergesReadyAfterRefresh() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [
+                .placeholder(id: "r1"),
+                .placeholder(id: "r2", state: .clean, permission: .write, mergeable: true)
+            ]
+        )
+        let store = makeAutoStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
+        XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "mergePullRequest"), 1)
+    }
+
+    func testAutoModeReapprovesAfterStaleDismissalAcrossCycles() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let store = makeAutoStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
+
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 2)
+    }
+
+    func testDisablingAutoModeStopsMutations() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let (store, settings) = makeInstrumentedAutoStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
+
+        await MainActor.run { settings.autoModeEnabled = false }
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
+    }
+
+    @MainActor
+    func testEnablingAutoModeProcessesImmediately() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let ghCLI = FakeGHCLI()
+        let settings = GitHubSettings(
+            personalAccessToken: "pat-token",
+            ghCLI: ghCLI,
+            userDefaults: UserDefaultsFactory.make()
+        )
+        let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
+        provider.resolve()
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings)
+
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 0)
+
+        settings.autoModeEnabled = true
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
+    }
+
+    func testAutoApproveFailureRecordsInlineErrorAndRetriesNextCycle() async {
+        let transport = FakeTransport()
+        transport.failMutations = true
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [
+                .placeholder(id: "r1"),
+                .placeholder(id: "r2", state: .clean, permission: .write, mergeable: true)
+            ]
+        )
+        let store = makeAutoStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.actionErrors["r1"], "mutation rejected")
+        XCTAssertEqual(store.actionErrors["r2"], "mutation rejected")
+
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 2)
+    }
+
     func testTotalCountCombinesAllLivePRs() async {
         let transport = FakeTransport()
         transport.stubbedData = DashboardFixture.make(

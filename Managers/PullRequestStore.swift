@@ -67,6 +67,8 @@ final class PullRequestStore: ObservableObject {
     private let scheduler: RefreshScheduling
     private var refreshTask: Task<Void, Never>?
     private var refreshGeneration = 0
+    private var isAutoProcessing = false
+    private var autoModeCancellable: AnyCancellable?
 
     init(
         client: GitHubClient?,
@@ -81,6 +83,14 @@ final class PullRequestStore: ObservableObject {
         self.now = now
         self.scheduler = scheduler
         self.dismissedIDs = Set(userDefaults.stringArray(forKey: Self.dismissedIDsKey) ?? [])
+        autoModeCancellable = settings.$autoModeEnabled
+            .dropFirst()
+            .sink { [weak self] enabled in
+                guard enabled else { return }
+                Task { @MainActor [weak self] in
+                    await self?.processAutoActions()
+                }
+            }
     }
 
     deinit {
@@ -124,6 +134,26 @@ final class PullRequestStore: ObservableObject {
         await task.value
         if refreshGeneration == generation {
             refreshTask = nil
+        }
+        await processAutoActions()
+    }
+
+    func processAutoActions() async {
+        guard settings.autoModeEnabled, isAutoProcessing == false else { return }
+        guard client != nil else { return }
+        isAutoProcessing = true
+        defer { isAutoProcessing = false }
+
+        let waitingSnapshot = waitingMyReview
+        for pr in waitingSnapshot where inFlightActionIDs.contains(pr.id) == false {
+            await approve(pr)
+        }
+
+        guard settings.autoModeEnabled else { return }
+
+        let readySnapshot = readyToMerge
+        for pr in readySnapshot where inFlightActionIDs.contains(pr.id) == false {
+            await merge(pr)
         }
     }
 

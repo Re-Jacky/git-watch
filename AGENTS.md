@@ -35,3 +35,4 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 - Do not add comments to code
 - Merge method default is `.merge` (matches github.com); persisted under `github.mergeMethod`
 - Refresh interval is a fixed 300 s constant passed to `startAutomaticRefresh` — do not expose it in Settings without updating the spec
+- Auto Mode (`github.autoModeEnabled`): store processes approve (waiting bucket, any CI state, re-approving after stale dismissals) then merge (ready bucket) at the tail of every `refresh(force:)` and immediately on enable via the settings sink; `isAutoProcessing` guards re-entry — do not call `processAutoActions()` from inside `performRefresh()`

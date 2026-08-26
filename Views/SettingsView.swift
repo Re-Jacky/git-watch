@@ -92,6 +92,22 @@ struct SettingsView: View {
                 .foregroundColor(.appPrimaryText)
 
             VStack(alignment: .leading, spacing: 6) {
+                Text("Auto Mode")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                Toggle("Enable Auto Mode", isOn: $githubSettings.autoModeEnabled)
+                    .toggleStyle(.switch)
+
+                Text("While enabled, every PR waiting for your review is approved automatically — including re-approval after an author pushes changes and your stale review is dismissed — and any green PR you have permission to merge is merged immediately using your default merge method. The menu bar icon turns blue while Auto mode is active.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
                 Text("Personal Access Token")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.appPrimaryText)

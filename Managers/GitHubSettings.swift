@@ -28,6 +28,7 @@ enum MergeMethod: String, CaseIterable, Identifiable {
 final class GitHubSettings: ObservableObject {
     static let patKey = "github.personalAccessToken"
     static let mergeMethodKey = "github.mergeMethod"
+    static let autoModeKey = "github.autoModeEnabled"
 
     @Published var personalAccessToken: String {
         didSet { userDefaults.set(personalAccessToken, forKey: Self.patKey) }
@@ -35,6 +36,10 @@ final class GitHubSettings: ObservableObject {
 
     @Published var mergeMethod: MergeMethod {
         didSet { userDefaults.set(mergeMethod.rawValue, forKey: Self.mergeMethodKey) }
+    }
+
+    @Published var autoModeEnabled: Bool {
+        didSet { userDefaults.set(autoModeEnabled, forKey: Self.autoModeKey) }
     }
 
     private let userDefaults: UserDefaults
@@ -46,6 +51,7 @@ final class GitHubSettings: ObservableObject {
         self.personalAccessToken = userDefaults.string(forKey: Self.patKey) ?? ""
         let raw = userDefaults.string(forKey: Self.mergeMethodKey)
         self.mergeMethod = raw.flatMap(MergeMethod.init(rawValue:)) ?? .merge
+        self.autoModeEnabled = userDefaults.bool(forKey: Self.autoModeKey)
     }
 
     init(personalAccessToken: String, ghCLI: GHCLIRunning, userDefaults: UserDefaults) {
@@ -53,5 +59,6 @@ final class GitHubSettings: ObservableObject {
         self.ghCLI = ghCLI
         self.personalAccessToken = personalAccessToken
         self.mergeMethod = .merge
+        self.autoModeEnabled = false
     }
 }
