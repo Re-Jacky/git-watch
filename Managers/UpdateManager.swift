@@ -203,7 +203,7 @@ final class UpdateManager: ObservableObject {
             }
 
             // Clean up contract files and expanded directories
-            let contractsDir = fileManager.temporaryDirectory.appendingPathComponent("pulse-updater")
+            let contractsDir = fileManager.temporaryDirectory.appendingPathComponent("gitwatch-updater")
             try? fileManager.removeItem(at: contractsDir)
             let expandedDirs = (try? fileManager.contentsOfDirectory(atPath: fileManager.temporaryDirectory.path))?
                 .filter { $0.hasPrefix("GitWatch-") && $0.hasSuffix("-expanded") }
@@ -238,7 +238,7 @@ final class UpdateManager: ObservableObject {
     }
 
     private func writeInstallContract(_ contract: UpdateInstallContract) throws -> URL {
-        let contractsDirectory = fileManager.temporaryDirectory.appendingPathComponent("pulse-updater", isDirectory: true)
+        let contractsDirectory = fileManager.temporaryDirectory.appendingPathComponent("gitwatch-updater", isDirectory: true)
         try fileManager.createDirectory(at: contractsDirectory, withIntermediateDirectories: true)
 
         let contractURL = contractsDirectory.appendingPathComponent("install-contract-\(UUID().uuidString).json")
