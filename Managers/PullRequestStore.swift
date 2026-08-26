@@ -35,6 +35,8 @@ final class TimerRefreshScheduler: RefreshScheduling {
 
 @MainActor
 final class PullRequestStore: ObservableObject {
+    static let dismissedIDsKey = "github.dismissedPRIds"
+
     @Published private(set) var mine: [PullRequestSummary] = []
     @Published private(set) var waitingMyReview: [PullRequestSummary] = []
     @Published private(set) var readyToMerge: [PullRequestSummary] = []
@@ -43,17 +45,24 @@ final class PullRequestStore: ObservableObject {
     @Published private(set) var status: ConnectionStatus = .idle
     @Published private(set) var actionErrors: [String: String] = [:]
     @Published private(set) var inFlightActionIDs: Set<String> = []
+    @Published private(set) var dismissedIDs: Set<String> = []
 
     var actionableCount: Int {
         waitingMyReview.count + readyToMerge.count
+    }
+
+    var totalCount: Int {
+        mine.count + waitingMyReview.count + readyToMerge.count
     }
 
     var settingsMergeMethod: MergeMethod {
         settings.mergeMethod
     }
 
+    private var latestGroupings = PRGroupings(mine: [], waitingMyReview: [], readyToMerge: [])
     private let client: GitHubClient?
     private let settings: GitHubSettings
+    private let userDefaults: UserDefaults
     private let now: () -> Date
     private let scheduler: RefreshScheduling
     private var refreshTask: Task<Void, Never>?
@@ -62,13 +71,16 @@ final class PullRequestStore: ObservableObject {
     init(
         client: GitHubClient?,
         settings: GitHubSettings,
+        userDefaults: UserDefaults = .standard,
         now: @escaping () -> Date = Date.init,
         scheduler: RefreshScheduling = TimerRefreshScheduler()
     ) {
         self.client = client
         self.settings = settings
+        self.userDefaults = userDefaults
         self.now = now
         self.scheduler = scheduler
+        self.dismissedIDs = Set(userDefaults.stringArray(forKey: Self.dismissedIDsKey) ?? [])
     }
 
     deinit {
@@ -144,13 +156,32 @@ final class PullRequestStore: ObservableObject {
     }
 
     private func apply(snapshot: DashboardSnapshot, at date: Date) {
-        let groupings = PullRequestClassifier.group(authored: snapshot.authored, reviewRequested: snapshot.reviewRequested)
-        mine = groupings.mine
-        waitingMyReview = groupings.waitingMyReview
-        readyToMerge = groupings.readyToMerge
+        latestGroupings = PullRequestClassifier.group(authored: snapshot.authored, reviewRequested: snapshot.reviewRequested)
+        republish()
         viewerLogin = snapshot.viewerLogin
         lastRefreshedAt = date
         actionErrors.removeAll()
+    }
+
+    private func republish() {
+        mine = latestGroupings.mine.filter { dismissedIDs.contains($0.id) == false }
+        waitingMyReview = latestGroupings.waitingMyReview.filter { dismissedIDs.contains($0.id) == false }
+        readyToMerge = latestGroupings.readyToMerge.filter { dismissedIDs.contains($0.id) == false }
+    }
+
+    func dismiss(_ summary: PullRequestSummary) {
+        dismissedIDs.insert(summary.id)
+        userDefaults.set(Array(dismissedIDs), forKey: Self.dismissedIDsKey)
+        actionErrors[summary.id] = nil
+        inFlightActionIDs.remove(summary.id)
+        republish()
+    }
+
+    func restoreAllDismissed() {
+        guard dismissedIDs.isEmpty == false else { return }
+        dismissedIDs.removeAll()
+        userDefaults.removeObject(forKey: Self.dismissedIDsKey)
+        republish()
     }
 
     func approve(_ summary: PullRequestSummary) async {

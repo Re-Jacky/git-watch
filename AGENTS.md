@@ -17,6 +17,7 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 - Tab content stays mounted behind `.opacity` + `.allowsHitTesting`; use the `gitwatchPanelDidOpen` notification for refresh-on-open behavior, never `onAppear`
 - Footer is pinned structurally (`VStack` last child) — do not wrap it in scroll content
 - `PullRequestStore` is the single source of truth for PR lists, connection status, badge count, and action errors
+- Badge counts `totalCount` (all live PRs: mine + review + merge); dismissed PRs (persisted under `github.dismissedPRIds`) are filtered at publish time and excluded from every list and count; Settings → GitHub restores them
 - Classification lives only in `PullRequestClassifier`: ready-to-merge requires `mergeStateStatus ∈ {CLEAN, HAS_HOOKS}` AND `viewerPermission ∈ {WRITE, MAINTAIN, ADMIN}` AND `mergeable == MERGEABLE`
 - v1 scope limit: ready-to-merge candidates come solely from the two dashboard searches (authored / review-requested); teammate PRs you are neither author nor requested reviewer of are invisible by design
 - `GitHubClient.isAuthenticated` exists as an internal read-only accessor derived from provider.resolution (added Task 6 for no-token detection without network calls)

@@ -95,8 +95,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func observeBadgeCount() {
-        Publishers.CombineLatest(pullRequestStore.$waitingMyReview, pullRequestStore.$readyToMerge)
-            .map { $0.count + $1.count }
+        Publishers.CombineLatest3(pullRequestStore.$mine, pullRequestStore.$waitingMyReview, pullRequestStore.$readyToMerge)
+            .map { $0.count + $1.count + $2.count }
             .receive(on: RunLoop.main)
             .sink { [weak self] count in
                 self?.badgeController?.update(count: count)
@@ -209,6 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rootView: PanelView()
                 .environmentObject(themeManager)
                 .environmentObject(pullRequestStore)
+                .environmentObject(updateManager)
         )
         vc.view.appearance = themeManager.currentTheme.nsAppearance
         p.contentViewController = vc
@@ -335,6 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 .environmentObject(updateManager)
                 .environmentObject(launchAtLoginSettings)
                 .environmentObject(githubSettings)
+                .environmentObject(pullRequestStore)
         )
         controller.view.appearance = themeManager.currentTheme.nsAppearance
         window.contentViewController = controller

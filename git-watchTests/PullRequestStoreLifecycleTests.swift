@@ -214,6 +214,113 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         let groupings = PRGroupings(mine: [], waitingMyReview: [.placeholder(id: "1")], readyToMerge: [.placeholder(id: "2"), .placeholder(id: "3")])
         XCTAssertEqual(groupings.actionableCount, 3)
     }
+
+    private func makeStoreWithDefaults(
+        defaults: UserDefaults,
+        transport: FakeTransport
+    ) -> PullRequestStore {
+        let ghCLI = FakeGHCLI()
+        let resolvedSettings = GitHubSettings(
+            personalAccessToken: "pat-token",
+            ghCLI: ghCLI,
+            userDefaults: UserDefaultsFactory.make()
+        )
+        let provider = GitHubAuthProvider(settings: resolvedSettings, ghCLI: ghCLI)
+        provider.resolve()
+        let client = GitHubClient(provider: provider, transport: transport)
+        return PullRequestStore(client: client, settings: resolvedSettings, userDefaults: defaults)
+    }
+
+    func testTotalCountCombinesAllLivePRs() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            viewerLogin: "rejacky",
+            authored: [.placeholder(id: "m1")],
+            reviewRequested: [
+                .placeholder(id: "r1", state: .clean, permission: .write, mergeable: true),
+                .placeholder(id: "r2")
+            ]
+        )
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.mine.count, 1)
+        XCTAssertEqual(store.waitingMyReview.count, 1)
+        XCTAssertEqual(store.readyToMerge.count, 1)
+        XCTAssertEqual(store.totalCount, 3)
+    }
+
+    func testDismissHidesPREverywhereAndPersistsAcrossInstances() async {
+        let defaults = UserDefaultsFactory.make()
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            authored: [.placeholder(id: "m1")],
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let store = makeStoreWithDefaults(defaults: defaults, transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.totalCount, 2)
+
+        store.dismiss(.placeholder(id: "m1"))
+        XCTAssertTrue(store.mine.isEmpty)
+        XCTAssertEqual(store.waitingMyReview.count, 1)
+        XCTAssertEqual(store.totalCount, 1)
+
+        let reloaded = makeStoreWithDefaults(defaults: defaults, transport: FakeTransport())
+        XCTAssertEqual(reloaded.dismissedIDs, ["m1"])
+    }
+
+    func testRestoreAllDismissedShowsItemsImmediatelyWithoutNetwork() async {
+        let defaults = UserDefaultsFactory.make()
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1")]
+        )
+        let store = makeStoreWithDefaults(defaults: defaults, transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(transport.callCount, 1)
+
+        store.dismiss(.placeholder(id: "r1"))
+        XCTAssertTrue(store.waitingMyReview.isEmpty)
+
+        store.restoreAllDismissed()
+        XCTAssertTrue(store.dismissedIDs.isEmpty)
+        XCTAssertEqual(store.waitingMyReview.count, 1)
+        XCTAssertEqual(store.totalCount, 1)
+        XCTAssertEqual(transport.callCount, 1)
+    }
+
+    func testDismissedPRStaysHiddenAfterSubsequentRefresh() async {
+        let defaults = UserDefaultsFactory.make()
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(
+            reviewRequested: [.placeholder(id: "r1"), .placeholder(id: "r2")]
+        )
+        let store = makeStoreWithDefaults(defaults: defaults, transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.waitingMyReview.count, 2)
+
+        store.dismiss(.placeholder(id: "r1"))
+        await store.refresh(force: true)
+        XCTAssertEqual(store.waitingMyReview.count, 1)
+        XCTAssertEqual(store.waitingMyReview.first?.id, "r2")
+        XCTAssertEqual(store.totalCount, 1)
+    }
+}
+
+extension PullRequestSummary {
+    static func placeholder(
+        id: String,
+        state: MergeStateStatus,
+        permission: ViewerPermission,
+        mergeable: Bool
+    ) -> PullRequestSummary {
+        PullRequestSummary(
+            id: id, number: 1, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/1")!, authorLogin: "a",
+            createdAt: Date(), reviewDecision: nil, mergeable: mergeable,
+            mergeStateStatus: state, viewerPermission: permission, checks: []
+        )
+    }
 }
 
 extension PullRequestSummary {

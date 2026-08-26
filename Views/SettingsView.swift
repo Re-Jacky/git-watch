@@ -5,6 +5,7 @@ struct SettingsView: View {
     @EnvironmentObject var updateManager: UpdateManager
     @EnvironmentObject var launchAtLoginSettings: LaunchAtLoginSettings
     @EnvironmentObject var githubSettings: GitHubSettings
+    @EnvironmentObject var pullRequestStore: PullRequestStore
     @ObservedObject var authProvider: GitHubAuthProvider
     @State private var selectedSection: Section = .general
     private let versionInfo = AppVersionInfo()
@@ -23,7 +24,7 @@ struct SettingsView: View {
                     .foregroundColor(.appSecondaryText)
 
                 sidebarButton(title: "General", systemImage: "gearshape", section: .general)
-                sidebarButton(title: "GitHub", systemImage: "person.crop.circle.badge.key", section: .github)
+                sidebarButton(title: "GitHub", systemImage: "key", section: .github)
                 sidebarButton(title: "Updates", systemImage: "arrow.triangle.2.circlepath", section: .updates)
 
                 Spacer()
@@ -129,6 +130,25 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 320)
                 .labelsHidden()
+            }
+
+            if pullRequestStore.dismissedIDs.isEmpty == false {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Dismissed Pull Requests")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.appPrimaryText)
+
+                    Text("\(pullRequestStore.dismissedIDs.count) PR(s) are hidden because you dismissed them. Restoring brings them back on the next refresh.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.appSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button("Show Dismissed PRs (\(pullRequestStore.dismissedIDs.count))") {
+                        pullRequestStore.restoreAllDismissed()
+                    }
+                }
             }
         }
     }

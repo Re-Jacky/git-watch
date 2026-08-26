@@ -6,6 +6,7 @@ struct PullRequestRowView: View {
     let inFlight: Bool
     let errorMessage: String?
     let onAction: () -> Void
+    var onDismiss: (() -> Void)? = nil
 
     enum RowAction: Equatable {
         case none
@@ -31,6 +32,15 @@ struct PullRequestRowView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.appTertiaryText)
                 Spacer(minLength: 0)
+                if let onDismiss {
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark.circle")
+                            .font(.system(size: 11))
+                            .foregroundColor(.appTertiaryText)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Don't show this PR again (dismiss)")
+                }
             }
 
             Text(summary.title)

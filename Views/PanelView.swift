@@ -4,6 +4,7 @@ struct PanelView: View {
     @AppStorage("selectedTab") private var selectedTab = 0
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var store: PullRequestStore
+    @EnvironmentObject var updateManager: UpdateManager
 
     var body: some View {
         ZStack {
@@ -11,12 +12,20 @@ struct PanelView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Picker("", selection: $selectedTab) {
-                    Text("Mine \(tabCount(store.mine.count))").tag(0)
-                    Text("Review & Merge \(tabCount(store.actionableCount))").tag(1)
+                ZStack {
+                    Picker("", selection: $selectedTab) {
+                        Text("Mine \(tabCount(store.mine.count))").tag(0)
+                        Text("Review & Merge \(tabCount(store.actionableCount))").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    HStack {
+                        Spacer()
+                        PanelVersionHeaderView(versionInfo: AppVersionInfo())
+                            .environmentObject(updateManager)
+                    }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
                 .padding(.bottom, 10)
@@ -110,7 +119,8 @@ private struct MineListView: View {
                                 action: .none,
                                 inFlight: false,
                                 errorMessage: errors[pr.id],
-                                onAction: {}
+                                onAction: {},
+                                onDismiss: { store.dismiss(pr) }
                             )
                         }
                     }
@@ -143,7 +153,8 @@ private struct ReviewMergeListView: View {
                                     action: .approve,
                                     inFlight: inFlight.contains(pr.id),
                                     errorMessage: errors[pr.id],
-                                    onAction: { Task { await store.approve(pr) } }
+                                    onAction: { Task { await store.approve(pr) } },
+                                    onDismiss: { store.dismiss(pr) }
                                 )
                             }
                         }
@@ -155,7 +166,8 @@ private struct ReviewMergeListView: View {
                                     action: .merge(store.settingsMergeMethod),
                                     inFlight: inFlight.contains(pr.id),
                                     errorMessage: errors[pr.id],
-                                    onAction: { Task { await store.merge(pr) } }
+                                    onAction: { Task { await store.merge(pr) } },
+                                    onDismiss: { store.dismiss(pr) }
                                 )
                             }
                         }
@@ -238,5 +250,112 @@ struct PanelFooterView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return "Updated \(formatter.localizedString(for: lastRefreshedAt, relativeTo: Date()))"
+    }
+}
+
+struct PanelVersionHeaderView: View {
+    let versionInfo: AppVersionInfo
+
+    @EnvironmentObject var updateManager: UpdateManager
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if case .downloading = updateManager.state {
+            } else {
+                Text(versionInfo.headerDisplayVersion)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.appSecondaryText)
+                    .lineLimit(1)
+                    .monospacedDigit()
+            }
+
+            updateStatusView
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("GitWatch \(versionInfo.headerDisplayVersion), \(accessibilityStatus)")
+    }
+
+    @ViewBuilder
+    private var updateStatusView: some View {
+        switch updateManager.state {
+        case .checking:
+            HStack(spacing: 3) {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.65)
+                Text("Checking")
+                    .font(.system(size: 10))
+            }
+            .foregroundColor(.appSecondaryText)
+        case .downloading:
+            HStack(spacing: 3) {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.65)
+                Text("Downloading")
+                    .font(.system(size: 10))
+            }
+            .foregroundColor(.appSecondaryText)
+        case let .updateAvailable(release):
+            Button("Update") {
+                Task { @MainActor in
+                    do {
+                        try await updateManager.downloadAvailableUpdate(release)
+                    } catch {
+                        updateManager.present(error: error)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(.accentColor)
+            .help("Update to GitWatch \(release.version)")
+        case let .readyToInstall(release, _, _):
+            Button("Install") {
+                Task { @MainActor in
+                    do {
+                        try await updateManager.beginInstall()
+                    } catch {
+                        updateManager.present(error: error)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(.accentColor)
+            .help("Install GitWatch \(release.version)")
+        case let .failed(message):
+            Button("Retry") {
+                Task { @MainActor in
+                    await updateManager.checkForUpdates(userInitiated: true)
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundColor(.red)
+            .help(message)
+        default:
+            EmptyView()
+        }
+    }
+
+    private var accessibilityStatus: String {
+        switch updateManager.state {
+        case .checking:
+            return "checking for updates"
+        case .downloading:
+            return "downloading update"
+        case let .updateAvailable(release):
+            return "update \(release.version) available"
+        case let .readyToInstall(release, _, _):
+            return "update \(release.version) ready to install"
+        case .failed:
+            return "update check failed"
+        case .upToDate:
+            return "up to date"
+        default:
+            return "update status idle"
+        }
     }
 }

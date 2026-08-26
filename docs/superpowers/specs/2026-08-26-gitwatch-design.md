@@ -145,3 +145,15 @@ Coverage:
 - Scope: single implementation plan sized.
 - Ambiguity: refresh = 5 min fixed (not configurable in v1); badge counts review + merge actionable totals only; merged/closed PRs are never displayed.
 - UI validated with the user via visual-companion mockups (v2): two tabs, grouped sections (variant A), pinned footer.
+
+---
+
+## Changelog
+
+### 2026-08-26 — UI refinements (post-v1.0.0 feedback)
+
+1. Menu bar glyph wrapped in a circular outline for visibility.
+2. Panel header gains version label + update-status control (Pulse `ProductVersionHeaderView` pattern) overlaid on the tab row.
+3. Settings GitHub sidebar icon changed to `key` — the previous symbol does not resolve on this OS build.
+4. Menu bar badge counts **all live PRs involving you** (`totalCount` = Mine + Waiting-for-your-review + Ready-to-merge). Per-tab labels keep their own counts.
+5. Per-PR **dismiss** (✕ on each row): hides the PR from every list and from all counts, persisted under `github.dismissedPRIds`; Settings → GitHub offers "Show Dismissed PRs (\(n))" to restore.

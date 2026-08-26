@@ -31,8 +31,12 @@ struct MenuBarBadgeView: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "arrow.triangle.pull")
-                .font(.system(size: 13, weight: .regular))
-                .frame(width: 15, height: 15)
+                .font(.system(size: 9, weight: .bold))
+                .frame(width: 18, height: 18)
+                .background(
+                    Circle()
+                        .strokeBorder(Color.primary.opacity(0.85), lineWidth: 1.25)
+                )
             if count > 0 {
                 Text("\(count)")
                     .font(.system(size: 12, weight: .bold))
