@@ -24,14 +24,30 @@ struct PullRequestRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(spacing: 6) {
-                Text(repositoryLabel)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.appSecondaryText)
-                Text("· \(ageText)")
-                    .font(.system(size: 11))
-                    .foregroundColor(.appTertiaryText)
-                Spacer(minLength: 0)
+            HStack(alignment: .top, spacing: 6) {
+                Button(action: { NSWorkspace.shared.open(summary.url) }) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 6) {
+                            Text(repositoryLabel)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.appSecondaryText)
+                            Text("· \(ageText)")
+                                .font(.system(size: 11))
+                                .foregroundColor(.appTertiaryText)
+                        }
+
+                        Text(summary.title)
+                            .font(.system(size: 12))
+                            .foregroundColor(.appPrimaryText)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Open pull request in browser")
+
                 if let onDismiss {
                     Button(action: onDismiss) {
                         Image(systemName: "xmark.circle")
@@ -42,12 +58,6 @@ struct PullRequestRowView: View {
                     .help("Don't show this PR again (dismiss)")
                 }
             }
-
-            Text(summary.title)
-                .font(.system(size: 12))
-                .foregroundColor(.appPrimaryText)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
 
             HStack(spacing: 8) {
                 if summary.checks.isEmpty == false {
@@ -103,10 +113,6 @@ struct PullRequestRowView: View {
         .padding(9)
         .background(Color.appFieldBackground.opacity(0.55))
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            NSWorkspace.shared.open(summary.url)
-        }
     }
 
     private var repositoryLabel: String {
