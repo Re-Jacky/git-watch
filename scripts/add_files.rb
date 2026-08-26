@@ -13,7 +13,11 @@ main_group = project.main_group.children.find { |g| g.display_name == 'git-watch
 ARGV.each do |file_path|
   abort "#{file_path} does not exist" unless File.exist?(file_path)
   dir = File.dirname(file_path)
-  group = dir == '.' ? main_group : main_group.find_subpath(dir, true)
+  group = if dir == '.'
+    main_group.children.find { |g| g.display_name == 'Sources' } || main_group.new_group('Sources', '.')
+  else
+    main_group.find_subpath(dir, true)
+  end
   next if group.files.any? { |f| f.path == File.basename(file_path) }
   ref = group.new_reference(File.basename(file_path))
   target = dir == 'git-watchTests' ? test_target : app_target

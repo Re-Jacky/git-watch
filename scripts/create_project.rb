@@ -7,6 +7,12 @@ FileUtils.rm_rf(project_path)
 project = Xcodeproj::Project.new(project_path)
 main_group = project.main_group.new_group('git-watch', '.')
 
+root_sources = Dir.glob('*.swift').sort
+root_group = main_group.new_group('Sources', '.')
+root_sources.each do |f|
+  root_group.new_reference(File.basename(f))
+end
+
 %w[App Managers Views].each do |dir|
   g = main_group.new_group(dir, dir)
   Dir.glob("#{dir}/**/*.swift").sort.each do |f|
@@ -19,6 +25,9 @@ Dir.glob('gitwatchUpdater/*.swift').sort.each do |f|
   updater_group.new_reference(File.basename(f))
 end
 
+resources_group = main_group.new_group('Resources', 'Resources')
+icns_ref = resources_group.new_reference('AppIcon.icns')
+
 app = project.new_target(:application, 'git-watch', :osx, '14.0')
 app.product_name = 'GitWatch'
 main_group.groups.find { |g| g.name == 'App' }.files.each do |ref|
@@ -28,6 +37,9 @@ main_group.groups.find { |g| g.name == 'Managers' }.files.each do |ref|
   app.add_file_references([ref])
 end
 main_group.groups.find { |g| g.name == 'Views' }.files.each do |ref|
+  app.add_file_references([ref])
+end
+root_group.files.each do |ref|
   app.add_file_references([ref])
 end
 app.build_configurations.each do |cfg|
@@ -45,6 +57,8 @@ app.build_configurations.each do |cfg|
     'PRODUCT_NAME' => 'GitWatch'
   )
 end
+
+app.resources_build_phase.add_file_reference(icns_ref)
 
 helper = project.new_target(:application, 'GitWatchUpdater', :osx, '14.0')
 helper.product_name = 'GitWatchUpdater'
