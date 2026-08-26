@@ -175,7 +175,8 @@ private struct ReviewMergeListView: View {
                                     inFlight: inFlight.contains(pr.id),
                                     errorMessage: errors[pr.id],
                                     onAction: { Task { await store.approve(pr) } },
-                                    onDismiss: { store.dismiss(pr) }
+                                    onDismiss: { store.dismiss(pr) },
+                                    showsAuthor: true
                                 )
                             }
                         }
@@ -188,7 +189,8 @@ private struct ReviewMergeListView: View {
                                     inFlight: inFlight.contains(pr.id),
                                     errorMessage: errors[pr.id],
                                     onAction: { Task { await store.merge(pr) } },
-                                    onDismiss: { store.dismiss(pr) }
+                                    onDismiss: { store.dismiss(pr) },
+                                    showsAuthor: true
                                 )
                             }
                         }

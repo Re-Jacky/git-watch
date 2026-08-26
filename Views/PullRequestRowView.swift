@@ -7,6 +7,7 @@ struct PullRequestRowView: View {
     let errorMessage: String?
     let onAction: () -> Void
     var onDismiss: (() -> Void)? = nil
+    var showsAuthor: Bool = false
 
     enum RowAction: Equatable {
         case none
@@ -31,6 +32,12 @@ struct PullRequestRowView: View {
                             Text(repositoryLabel)
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.appSecondaryText)
+                            if showsAuthor {
+                                Text("· @\(summary.authorLogin)")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.appTertiaryText)
+                                    .lineLimit(1)
+                            }
                             Text("· \(ageText)")
                                 .font(.system(size: 11))
                                 .foregroundColor(.appTertiaryText)
