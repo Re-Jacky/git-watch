@@ -63,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var eventMonitor: Any?
     private let themeManager = ThemeManager()
     private let launchAtLoginSettings = LaunchAtLoginSettings()
+    private let githubSettings = GitHubSettings()
+    private lazy var authProvider = GitHubAuthProvider(settings: githubSettings)
     private lazy var updateManager = UpdateManager(client: LiveUpdateClient(repoOwner: "Re-Jacky", repoName: "git-watch"))
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -297,10 +299,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.delegate = self
 
         let controller = NSHostingController(
-            rootView: SettingsView()
+            rootView: SettingsView(authProvider: authProvider)
                 .environmentObject(themeManager)
                 .environmentObject(updateManager)
                 .environmentObject(launchAtLoginSettings)
+                .environmentObject(githubSettings)
         )
         controller.view.appearance = themeManager.currentTheme.nsAppearance
         window.contentViewController = controller

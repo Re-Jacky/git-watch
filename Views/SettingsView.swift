@@ -4,11 +4,14 @@ struct SettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject var updateManager: UpdateManager
     @EnvironmentObject var launchAtLoginSettings: LaunchAtLoginSettings
+    @EnvironmentObject var githubSettings: GitHubSettings
+    @ObservedObject var authProvider: GitHubAuthProvider
     @State private var selectedSection: Section = .general
     private let versionInfo = AppVersionInfo()
 
     private enum Section: Hashable {
         case general
+        case github
         case updates
     }
 
@@ -20,6 +23,7 @@ struct SettingsView: View {
                     .foregroundColor(.appSecondaryText)
 
                 sidebarButton(title: "General", systemImage: "gearshape", section: .general)
+                sidebarButton(title: "GitHub", systemImage: "person.crop.circle.badge.key", section: .github)
                 sidebarButton(title: "Updates", systemImage: "arrow.triangle.2.circlepath", section: .updates)
 
                 Spacer()
@@ -37,6 +41,8 @@ struct SettingsView: View {
                             switch selectedSection {
                             case .general:
                                 generalContent
+                            case .github:
+                                githubContent
                             case .updates:
                                 updatesContent
                             }
@@ -72,6 +78,70 @@ struct SettingsView: View {
         }
         .frame(minWidth: 520, minHeight: 280)
         .id(themeManager.currentTheme)
+        .onAppear { authProvider.resolve() }
+        .onChange(of: githubSettings.personalAccessToken) { _, _ in
+            authProvider.resolve()
+        }
+    }
+
+    private var githubContent: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("GitHub")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(.appPrimaryText)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Personal Access Token")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                Text("Optional override. Leave empty to use your gh CLI login (gh auth token). The token needs repo read access and pull request write access.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                SecureField("ghp_…", text: $githubSettings.personalAccessToken)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 420)
+
+                Text(authStatusText)
+                    .font(.system(size: 12))
+                    .foregroundColor(.appSecondaryText)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Default Merge Method")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.appPrimaryText)
+
+                Text("Used by the Merge button when the repository allows it. Falls back to whatever method the repository permits.")
+                    .font(.system(size: 13))
+                    .foregroundColor(.appSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Picker("Method", selection: $githubSettings.mergeMethod) {
+                    ForEach(MergeMethod.allCases) { method in
+                        Text(method.label).tag(method)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 320)
+                .labelsHidden()
+            }
+        }
+    }
+
+    private var authStatusText: String {
+        switch authProvider.resolution {
+        case .patOverride:
+            return "Using the personal access token from Settings."
+        case .ghCLI:
+            return "Using the token from the gh CLI."
+        case .none:
+            return "Not signed in — add a token above or run gh auth login."
+        }
     }
 
     private var generalContent: some View {
