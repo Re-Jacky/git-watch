@@ -3,6 +3,7 @@
 build/
 dist/
 DerivedData/
+.codegraph/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 xcuserdata/
 default.profraw

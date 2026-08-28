@@ -31,6 +31,7 @@ final class GitHubSettings: ObservableObject {
     static let autoModeKey = "github.autoModeEnabled"
     static let autoApproveKey = "github.autoApprove"
     static let autoMergeKey = "github.autoMerge"
+    static let whitelistedAuthorsKey = "github.whitelistedAuthors"
 
     @Published var personalAccessToken: String {
         didSet { userDefaults.set(personalAccessToken, forKey: Self.patKey) }
@@ -52,6 +53,10 @@ final class GitHubSettings: ObservableObject {
         didSet { userDefaults.set(autoMergeEnabled, forKey: Self.autoMergeKey) }
     }
 
+    @Published var whitelistedAuthors: String {
+        didSet { userDefaults.set(whitelistedAuthors, forKey: Self.whitelistedAuthorsKey) }
+    }
+
     private let userDefaults: UserDefaults
     private let ghCLI: GHCLIRunning
 
@@ -64,6 +69,7 @@ final class GitHubSettings: ObservableObject {
         self.autoModeEnabled = userDefaults.bool(forKey: Self.autoModeKey)
         self.autoApproveEnabled = userDefaults.object(forKey: Self.autoApproveKey) as? Bool ?? true
         self.autoMergeEnabled = userDefaults.bool(forKey: Self.autoMergeKey)
+        self.whitelistedAuthors = userDefaults.string(forKey: Self.whitelistedAuthorsKey) ?? ""
     }
 
     init(personalAccessToken: String, ghCLI: GHCLIRunning, userDefaults: UserDefaults) {
@@ -74,5 +80,6 @@ final class GitHubSettings: ObservableObject {
         self.autoModeEnabled = false
         self.autoApproveEnabled = true
         self.autoMergeEnabled = false
+        self.whitelistedAuthors = ""
     }
 }

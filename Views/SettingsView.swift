@@ -107,6 +107,22 @@ struct SettingsView: View {
                             .toggleStyle(.checkbox)
                     }
                     .padding(.leading, 16)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Author Whitelist")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.appPrimaryText)
+
+                        TextField("e.g. octocat, github_user", text: $githubSettings.whitelistedAuthors)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 320)
+
+                        Text("Only PRs from these GitHub usernames will be auto-approved or merged. Leave empty to allow all authors.")
+                            .font(.system(size: 12))
+                            .foregroundColor(.appSecondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.leading, 16)
                 }
 
                 Text("While enabled, Auto mode runs after every refresh and immediately when switched on. Approve covers every review request — including re-approval after an author pushes changes and your stale review is dismissed — regardless of CI state. Merge only touches green PRs you have permission to merge, using your default merge method. The menu bar icon turns blue while Auto mode is active.")

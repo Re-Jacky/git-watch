@@ -157,8 +157,13 @@ final class PullRequestStore: ObservableObject {
         isAutoProcessing = true
         defer { isAutoProcessing = false }
 
+        let allowedLogins = Self.parseWhitelist(settings.whitelistedAuthors)
+        let filterByWhitelist = { (pr: PullRequestSummary) -> Bool in
+            allowedLogins.isEmpty || allowedLogins.contains(pr.authorLogin.lowercased())
+        }
+
         if settings.autoApproveEnabled {
-            let waitingSnapshot = waitingMyReview
+            let waitingSnapshot = waitingMyReview.filter(filterByWhitelist)
             for pr in waitingSnapshot where inFlightActionIDs.contains(pr.id) == false {
                 await approve(pr)
             }
@@ -166,10 +171,14 @@ final class PullRequestStore: ObservableObject {
 
         guard settings.autoModeEnabled, settings.autoMergeEnabled else { return }
 
-        let readySnapshot = readyToMerge
+        let readySnapshot = readyToMerge.filter(filterByWhitelist)
         for pr in readySnapshot where inFlightActionIDs.contains(pr.id) == false {
             await merge(pr)
         }
+    }
+
+    static func parseWhitelist(_ raw: String) -> Set<String> {
+        Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }.filter { !$0.isEmpty })
     }
 
     private func performRefresh() async {
