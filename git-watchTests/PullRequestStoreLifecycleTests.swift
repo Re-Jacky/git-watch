@@ -21,15 +21,16 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         scheduler: FakeScheduler = FakeScheduler()
     ) -> PullRequestStore {
         let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
         let resolvedSettings = GitHubSettings(
             personalAccessToken: pat,
             ghCLI: ghCLI,
-            userDefaults: UserDefaultsFactory.make()
+            userDefaults: defaults
         )
         let provider = GitHubAuthProvider(settings: resolvedSettings, ghCLI: ghCLI)
         provider.resolve()
         let client = GitHubClient(provider: provider, transport: transport)
-        return PullRequestStore(client: client, settings: resolvedSettings, scheduler: scheduler)
+        return PullRequestStore(client: client, settings: resolvedSettings, userDefaults: defaults, scheduler: scheduler)
     }
 
     func testInitialStatusIdleAndEmptyGroupings() {
@@ -92,12 +93,13 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
     func testNoTokenResolutionShowsNoTokenWithoutNetworkCall() async {
         let transport = FakeTransport()
         let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
         let settings = GitHubSettings(
-            personalAccessToken: "", ghCLI: ghCLI, userDefaults: UserDefaultsFactory.make()
+            personalAccessToken: "", ghCLI: ghCLI, userDefaults: defaults
         )
         let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
         provider.resolve()
-        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings)
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings, userDefaults: defaults)
         await store.refresh(force: true)
         XCTAssertEqual(store.status, .noToken)
         XCTAssertEqual(transport.callCount, 0)
@@ -132,12 +134,13 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
     func testForceRefreshDuringInFlightPreservesSlotRegistration() async {
         let gated = GatedTransport()
         let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
         let settings = GitHubSettings(
-            personalAccessToken: "pat-token", ghCLI: ghCLI, userDefaults: UserDefaultsFactory.make()
+            personalAccessToken: "pat-token", ghCLI: ghCLI, userDefaults: defaults
         )
         let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
         provider.resolve()
-        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: gated), settings: settings)
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: gated), settings: settings, userDefaults: defaults)
         let a = Task { await store.refresh(force: true) }
         try? await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertEqual(gated.callCount, 1)
@@ -317,10 +320,11 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
             ]
         )
         let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
         let settings = GitHubSettings(
             personalAccessToken: "pat-token",
             ghCLI: ghCLI,
-            userDefaults: UserDefaultsFactory.make()
+            userDefaults: defaults
         )
         XCTAssertTrue(settings.autoApproveEnabled)
         XCTAssertFalse(settings.autoMergeEnabled)
@@ -328,7 +332,7 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         settings.autoModeEnabled = true
         let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
         provider.resolve()
-        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings)
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings, userDefaults: defaults)
         await store.refresh(force: true)
 
         XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
@@ -344,17 +348,18 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
             ]
         )
         let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
         let settings = GitHubSettings(
             personalAccessToken: "pat-token",
             ghCLI: ghCLI,
-            userDefaults: UserDefaultsFactory.make()
+            userDefaults: defaults
         )
         settings.autoModeEnabled = true
         settings.autoMergeEnabled = true
 
         let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
         provider.resolve()
-        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings)
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings, userDefaults: defaults)
         await store.refresh(force: true)
 
         XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 1)
@@ -363,10 +368,11 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
 
     private func makeInstrumentedAutoStore(transport: FakeTransport) -> (PullRequestStore, GitHubSettings) {
         let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
         let resolvedSettings = GitHubSettings(
             personalAccessToken: "pat-token",
             ghCLI: ghCLI,
-            userDefaults: UserDefaultsFactory.make()
+            userDefaults: defaults
         )
         resolvedSettings.autoModeEnabled = true
         resolvedSettings.autoApproveEnabled = true
@@ -374,7 +380,7 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         let provider = GitHubAuthProvider(settings: resolvedSettings, ghCLI: ghCLI)
         provider.resolve()
         let client = GitHubClient(provider: provider, transport: transport)
-        return (PullRequestStore(client: client, settings: resolvedSettings), resolvedSettings)
+        return (PullRequestStore(client: client, settings: resolvedSettings, userDefaults: defaults), resolvedSettings)
     }
 
     func testAutoModeDisabledDoesNotMutateAnything() async {
@@ -439,14 +445,15 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
             reviewRequested: [.placeholder(id: "r1")]
         )
         let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
         let settings = GitHubSettings(
             personalAccessToken: "pat-token",
             ghCLI: ghCLI,
-            userDefaults: UserDefaultsFactory.make()
+            userDefaults: defaults
         )
         let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
         provider.resolve()
-        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings)
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings, userDefaults: defaults)
 
         await store.refresh(force: true)
         XCTAssertEqual(transport.mutationCallCount(containing: "addPullRequestReview"), 0)

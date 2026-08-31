@@ -158,10 +158,12 @@ private struct ReviewMergeListView: View {
     let errors: [String: String]
     let inFlight: Set<String>
     let store: PullRequestStore
+    @EnvironmentObject var githubSettings: GitHubSettings
+    @AppStorage("autoApprovedHistoryCollapsed") private var isHistoryCollapsed = false
 
     var body: some View {
         Group {
-            if waitingMyReview.isEmpty && readyToMerge.isEmpty {
+            if waitingMyReview.isEmpty && readyToMerge.isEmpty && (githubSettings.autoModeEnabled == false || store.autoApprovedHistory.isEmpty) {
                 EmptyStateView(message: store.status == .refreshing ? "Loading…" : "Nothing is waiting on you")
             } else {
                 ScrollView {
@@ -203,8 +205,70 @@ private struct ReviewMergeListView: View {
                                 )
                             }
                         }
+                        if githubSettings.autoModeEnabled && store.autoApprovedHistory.isEmpty == false {
+                            historySection
+                        }
                     }
                     .padding(10)
+                }
+            }
+        }
+    }
+
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button {
+                    isHistoryCollapsed.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isHistoryCollapsed ? "chevron.right" : "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(.appSecondaryText)
+                        Text("Auto-approved · \(store.autoApprovedHistory.count)".uppercased())
+                            .font(.system(size: 10, weight: .semibold))
+                            .tracking(0.8)
+                            .foregroundColor(.appSecondaryText)
+                    }
+                }
+                .buttonStyle(.plain)
+                Spacer(minLength: 8)
+                Button("Clear") {
+                    store.clearAutoApprovedHistory()
+                }
+                .font(.system(size: 11))
+                .buttonStyle(.plain)
+                .foregroundColor(.appSecondaryText)
+                .help("Clear auto-approved history")
+            }
+            .padding(.top, 6)
+            .padding(.bottom, 2)
+            if isHistoryCollapsed == false {
+                ForEach(store.autoApprovedHistory) { entry in
+                    PullRequestRowView(
+                        summary: PullRequestSummary(
+                            id: entry.id,
+                            number: entry.number,
+                            title: entry.title,
+                            repositoryNameWithOwner: entry.repositoryNameWithOwner,
+                            url: entry.url,
+                            authorLogin: entry.authorLogin,
+                            createdAt: entry.createdAt,
+                            reviewDecision: .approved,
+                            mergeable: false,
+                            mergeStateStatus: .unknown,
+                            viewerPermission: .unknown,
+                            checks: []
+                        ),
+                        action: .none,
+                        inFlight: false,
+                        errorMessage: nil,
+                        onAction: {},
+                        onDismiss: nil,
+                        showsAuthor: true,
+                        locallyApproved: true
+                    )
+                    .opacity(0.55)
                 }
             }
         }

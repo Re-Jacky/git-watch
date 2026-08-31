@@ -33,9 +33,22 @@ final class TimerRefreshScheduler: RefreshScheduling {
     }
 }
 
+struct AutoApprovedEntry: Identifiable, Equatable, Codable {
+    let id: String
+    let number: Int
+    let title: String
+    let repositoryNameWithOwner: String
+    let url: URL
+    let authorLogin: String
+    let createdAt: Date
+    let approvedAt: Date
+}
+
 @MainActor
 final class PullRequestStore: ObservableObject {
     static let dismissedIDsKey = "github.dismissedPRIds"
+    static let autoApprovedHistoryKey = "github.autoApprovedHistory"
+    static let autoApprovedHistoryLimit = 100
 
     @Published private(set) var mine: [PullRequestSummary] = []
     @Published private(set) var waitingMyReview: [PullRequestSummary] = []
@@ -47,6 +60,7 @@ final class PullRequestStore: ObservableObject {
     @Published private(set) var inFlightActionIDs: Set<String> = []
     @Published private(set) var dismissedIDs: Set<String> = []
     @Published private(set) var locallyApprovedIDs: Set<String> = []
+    @Published private(set) var autoApprovedHistory: [AutoApprovedEntry] = []
 
     var actionableCount: Int {
         waitingMyReview.count + readyToMerge.count
@@ -95,6 +109,7 @@ final class PullRequestStore: ObservableObject {
         self.now = now
         self.scheduler = scheduler
         self.dismissedIDs = Set(userDefaults.stringArray(forKey: Self.dismissedIDsKey) ?? [])
+        self.autoApprovedHistory = Self.loadAutoApprovedHistory(from: userDefaults)
         autoModeCancellable = settings.$autoModeEnabled
             .dropFirst()
             .sink { [weak self] enabled in
@@ -165,7 +180,7 @@ final class PullRequestStore: ObservableObject {
         if settings.autoApproveEnabled {
             let waitingSnapshot = waitingMyReview.filter(filterByWhitelist)
             for pr in waitingSnapshot where inFlightActionIDs.contains(pr.id) == false {
-                await approve(pr)
+                await approve(pr, isAuto: true)
             }
         }
 
@@ -244,11 +259,60 @@ final class PullRequestStore: ObservableObject {
         republish()
     }
 
-    func approve(_ summary: PullRequestSummary) async {
+    func approve(_ summary: PullRequestSummary, isAuto: Bool = false) async {
         let succeeded = await runAction(summary) { try await $0.approve(pullRequestID: summary.id) }
         if succeeded {
             locallyApprovedIDs.insert(summary.id)
+            if isAuto {
+                recordAutoApproved(summary)
+            }
             scheduleCatchUpRefresh()
+        }
+    }
+
+    func clearAutoApprovedHistory() {
+        guard autoApprovedHistory.isEmpty == false else { return }
+        autoApprovedHistory.removeAll()
+        userDefaults.removeObject(forKey: Self.autoApprovedHistoryKey)
+    }
+
+    private func recordAutoApproved(_ summary: PullRequestSummary) {
+        guard summary.repositoryNameWithOwner != "o/r" else { return }
+        let entry = AutoApprovedEntry(
+            id: summary.id,
+            number: summary.number,
+            title: summary.title,
+            repositoryNameWithOwner: summary.repositoryNameWithOwner,
+            url: summary.url,
+            authorLogin: summary.authorLogin,
+            createdAt: summary.createdAt,
+            approvedAt: now()
+        )
+        autoApprovedHistory.removeAll { $0.id == entry.id }
+        autoApprovedHistory.insert(entry, at: 0)
+        if autoApprovedHistory.count > Self.autoApprovedHistoryLimit {
+            autoApprovedHistory = Array(autoApprovedHistory.prefix(Self.autoApprovedHistoryLimit))
+        }
+        Self.saveAutoApprovedHistory(autoApprovedHistory, to: userDefaults)
+    }
+
+    private static func loadAutoApprovedHistory(from userDefaults: UserDefaults) -> [AutoApprovedEntry] {
+        guard let data = userDefaults.data(forKey: autoApprovedHistoryKey) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = (try? decoder.decode([AutoApprovedEntry].self, from: data)) ?? []
+        let filtered = decoded.filter { $0.repositoryNameWithOwner != "o/r" }
+        if filtered.count != decoded.count {
+            saveAutoApprovedHistory(filtered, to: userDefaults)
+        }
+        return filtered
+    }
+
+    private static func saveAutoApprovedHistory(_ history: [AutoApprovedEntry], to userDefaults: UserDefaults) {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        if let data = try? encoder.encode(history) {
+            userDefaults.set(data, forKey: autoApprovedHistoryKey)
         }
     }
 
