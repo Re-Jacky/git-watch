@@ -61,6 +61,7 @@ final class PullRequestStore: ObservableObject {
     @Published private(set) var dismissedIDs: Set<String> = []
     @Published private(set) var locallyApprovedIDs: Set<String> = []
     @Published private(set) var autoApprovedHistory: [AutoApprovedEntry] = []
+    @Published private(set) var mergedHistoryIDs: Set<String> = []
 
     var actionableCount: Int {
         waitingMyReview.count + readyToMerge.count
@@ -78,6 +79,10 @@ final class PullRequestStore: ObservableObject {
     func canOfferMergeInPlace(for summary: PullRequestSummary) -> Bool {
         (locallyApprovedIDs.contains(summary.id) || summary.reviewDecision == .approved)
             && summary.canMerge
+    }
+
+    func canOfferMergeForMine(for summary: PullRequestSummary) -> Bool {
+        summary.canMerge
     }
 
     var settingsMergeMethod: MergeMethod {
@@ -163,7 +168,24 @@ final class PullRequestStore: ObservableObject {
         if refreshGeneration == generation {
             refreshTask = nil
         }
+        await refreshHistoryMergedStates()
         await processAutoActions()
+    }
+
+    private func refreshHistoryMergedStates() async {
+        guard status == .live, let client else {
+            return
+        }
+        let ids = autoApprovedHistory.map(\.id)
+        guard ids.isEmpty == false else {
+            mergedHistoryIDs = []
+            return
+        }
+        do {
+            mergedHistoryIDs = try await client.fetchHistoryMergedStates(ids: ids).intersection(ids)
+        } catch {
+            return
+        }
     }
 
     func processAutoActions() async {
@@ -317,8 +339,31 @@ final class PullRequestStore: ObservableObject {
     }
 
     func merge(_ summary: PullRequestSummary) async {
-        _ = await runAction(summary) { client in
+        let succeeded = await runAction(summary) { client in
             try await client.merge(pullRequestID: summary.id, method: self.settings.mergeMethod)
+        }
+        guard succeeded, settings.deleteBranchAfterMerge else { return }
+        await deleteHeadBranch(for: summary)
+    }
+
+    private func deleteHeadBranch(for summary: PullRequestSummary) async {
+        guard let client, summary.headRefName.isEmpty == false else { return }
+        let repo = summary.headRepositoryNameWithOwner.isEmpty ? summary.repositoryNameWithOwner : summary.headRepositoryNameWithOwner
+        let parts = repo.split(separator: "/")
+        guard parts.count == 2 else { return }
+        do {
+            try await client.deleteHeadBranch(owner: String(parts[0]), repo: String(parts[1]), branch: summary.headRefName)
+        } catch let error as GitHubClientError {
+            switch error {
+            case .unauthorized:
+                actionErrors[summary.id] = "Merged, but branch delete was not authorized — check your token."
+            case .rateLimited:
+                actionErrors[summary.id] = "Merged, but branch delete was rate limited. Try again shortly."
+            case .api(let messages):
+                actionErrors[summary.id] = "Merged, but branch delete failed: \(messages.joined(separator: "; "))"
+            }
+        } catch {
+            actionErrors[summary.id] = "Merged, but branch delete failed: \(error.localizedDescription)"
         }
     }
 

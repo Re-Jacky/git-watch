@@ -179,6 +179,9 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 320)
                 .labelsHidden()
+
+                Toggle("Automatically delete head branch after merge", isOn: $githubSettings.deleteBranchAfterMerge)
+                    .toggleStyle(.checkbox)
             }
 
             if pullRequestStore.dismissedIDs.isEmpty == false {

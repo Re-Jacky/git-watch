@@ -82,11 +82,44 @@ struct PullRequestSummary: Identifiable, Equatable {
     let mergeStateStatus: MergeStateStatus
     let viewerPermission: ViewerPermission
     let checks: [CheckStatusDot]
+    let headRefName: String
+    let headRepositoryNameWithOwner: String
+
+    init(
+        id: String,
+        number: Int,
+        title: String,
+        repositoryNameWithOwner: String,
+        url: URL,
+        authorLogin: String,
+        createdAt: Date,
+        reviewDecision: ReviewDecision?,
+        mergeable: Bool,
+        mergeStateStatus: MergeStateStatus,
+        viewerPermission: ViewerPermission,
+        checks: [CheckStatusDot],
+        headRefName: String = "",
+        headRepositoryNameWithOwner: String = ""
+    ) {
+        self.id = id
+        self.number = number
+        self.title = title
+        self.repositoryNameWithOwner = repositoryNameWithOwner
+        self.url = url
+        self.authorLogin = authorLogin
+        self.createdAt = createdAt
+        self.reviewDecision = reviewDecision
+        self.mergeable = mergeable
+        self.mergeStateStatus = mergeStateStatus
+        self.viewerPermission = viewerPermission
+        self.checks = checks
+        self.headRefName = headRefName
+        self.headRepositoryNameWithOwner = headRepositoryNameWithOwner
+    }
 
     var canMerge: Bool {
-        let stateOK = mergeStateStatus == .clean || mergeStateStatus == .hasHooks
         let permissionOK = viewerPermission == .write || viewerPermission == .maintain || viewerPermission == .admin
-        return stateOK && permissionOK && mergeable
+        return permissionOK && mergeable
     }
 }
 

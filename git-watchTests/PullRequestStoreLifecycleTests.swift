@@ -280,6 +280,93 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         XCTAssertFalse(store.canOfferMergeInPlace(for: approved))
     }
 
+    func testMineMergeOfferedWhenMergeableRegardlessOfStateOrReview() async {
+        let store = makeStore(transport: FakeTransport())
+        let unstableApproved = PullRequestSummary(
+            id: "m1", number: 176, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/176")!, authorLogin: "me",
+            createdAt: Date(), reviewDecision: .approved, mergeable: true,
+            mergeStateStatus: .unstable, viewerPermission: .maintain, checks: []
+        )
+        let cleanUnreviewed = PullRequestSummary(
+            id: "m2", number: 177, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/177")!, authorLogin: "me",
+            createdAt: Date(), reviewDecision: nil, mergeable: true,
+            mergeStateStatus: .clean, viewerPermission: .write, checks: []
+        )
+        XCTAssertTrue(store.canOfferMergeForMine(for: unstableApproved))
+        XCTAssertTrue(store.canOfferMergeForMine(for: cleanUnreviewed))
+        XCTAssertFalse(store.canOfferMergeForMine(for: .placeholder(id: "r1")))
+    }
+
+    func testSuccessfulMergeDeletesHeadBranchWhenEnabled() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make()
+        let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
+        let settings = GitHubSettings(personalAccessToken: "pat-token", ghCLI: ghCLI, userDefaults: defaults)
+        settings.deleteBranchAfterMerge = true
+        let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
+        provider.resolve()
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings, userDefaults: defaults)
+        let pr = PullRequestSummary(
+            id: "m1", number: 176, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/176")!, authorLogin: "me",
+            createdAt: Date(), reviewDecision: .approved, mergeable: true,
+            mergeStateStatus: .clean, viewerPermission: .maintain, checks: [],
+            headRefName: "feature-branch", headRepositoryNameWithOwner: "o/r"
+        )
+        await store.merge(pr)
+        XCTAssertEqual(transport.deletedRefs.count, 1)
+        XCTAssertEqual(transport.deletedRefs.first?.branch, "feature-branch")
+        XCTAssertNil(store.actionErrors["m1"])
+    }
+
+    func testSuccessfulMergeSkipsDeleteWhenDisabled() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make()
+        let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
+        let settings = GitHubSettings(personalAccessToken: "pat-token", ghCLI: ghCLI, userDefaults: defaults)
+        settings.deleteBranchAfterMerge = false
+        let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
+        provider.resolve()
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings, userDefaults: defaults)
+        let pr = PullRequestSummary(
+            id: "m1", number: 176, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/176")!, authorLogin: "me",
+            createdAt: Date(), reviewDecision: .approved, mergeable: true,
+            mergeStateStatus: .clean, viewerPermission: .maintain, checks: [],
+            headRefName: "feature-branch", headRepositoryNameWithOwner: "o/r"
+        )
+        await store.merge(pr)
+        XCTAssertTrue(transport.deletedRefs.isEmpty)
+        XCTAssertNil(store.actionErrors["m1"])
+    }
+
+    func testDeleteFailureSurfacesErrorWithoutFailingMerge() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make()
+        transport.stubbedDeleteError = GitHubClientError.api(["Could not delete branch"])
+        let ghCLI = FakeGHCLI()
+        let defaults = UserDefaultsFactory.make()
+        let settings = GitHubSettings(personalAccessToken: "pat-token", ghCLI: ghCLI, userDefaults: defaults)
+        settings.deleteBranchAfterMerge = true
+        let provider = GitHubAuthProvider(settings: settings, ghCLI: ghCLI)
+        provider.resolve()
+        let store = PullRequestStore(client: GitHubClient(provider: provider, transport: transport), settings: settings, userDefaults: defaults)
+        let pr = PullRequestSummary(
+            id: "m1", number: 176, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/176")!, authorLogin: "me",
+            createdAt: Date(), reviewDecision: .approved, mergeable: true,
+            mergeStateStatus: .clean, viewerPermission: .maintain, checks: [],
+            headRefName: "feature-branch", headRepositoryNameWithOwner: "o/r"
+        )
+        await store.merge(pr)
+        XCTAssertEqual(transport.deletedRefs.count, 1)
+        XCTAssertEqual(store.actionErrors["m1"], "Merged, but branch delete failed: Could not delete branch")
+    }
+
     func testFailedApproveDoesNotMarkLocallyApproved() async {
         let transport = FakeTransport()
         transport.stubbedData = DashboardFixture.make(
@@ -537,6 +624,56 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         XCTAssertEqual(store.waitingMyReview.count, 1)
         XCTAssertEqual(store.totalCount, 1)
         XCTAssertEqual(transport.callCount, 1)
+    }
+
+    func testRefreshPopulatesMergedHistoryIDs() async {
+        let transport = FakeTransport()
+        let historyPR = PullRequestSummary(
+            id: "h1", number: 11, title: "t", repositoryNameWithOwner: "o/real",
+            url: URL(string: "https://github.com/o/real/pull/11")!, authorLogin: "teammate",
+            createdAt: Date(), reviewDecision: nil, mergeable: false,
+            mergeStateStatus: .clean, viewerPermission: .write, checks: []
+        )
+        transport.stubbedData = DashboardFixture.make(reviewRequested: [historyPR])
+        transport.stubbedHistoryData = Data(#"{"data":{"nodes":[{"id":"h1","merged":true}]}}"#.utf8)
+        let (store, _) = makeInstrumentedAutoStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.autoApprovedHistory.map(\.id), ["h1"])
+        XCTAssertTrue(store.mergedHistoryIDs.isEmpty)
+
+        transport.stubbedData = FakeTransport.emptyDashboard
+        await store.refresh(force: true)
+        XCTAssertEqual(store.mergedHistoryIDs, ["h1"])
+    }
+
+    func testHistoryStatesFailureKeepsPreviousMergedIDs() async {
+        let transport = FakeTransport()
+        let historyPR = PullRequestSummary(
+            id: "h1", number: 11, title: "t", repositoryNameWithOwner: "o/real",
+            url: URL(string: "https://github.com/o/real/pull/11")!, authorLogin: "teammate",
+            createdAt: Date(), reviewDecision: nil, mergeable: false,
+            mergeStateStatus: .clean, viewerPermission: .write, checks: []
+        )
+        transport.stubbedData = DashboardFixture.make(reviewRequested: [historyPR])
+        transport.stubbedHistoryData = Data(#"{"data":{"nodes":[{"id":"h1","merged":true}]}}"#.utf8)
+        let (store, _) = makeInstrumentedAutoStore(transport: transport)
+        await store.refresh(force: true)
+        transport.stubbedData = FakeTransport.emptyDashboard
+        await store.refresh(force: true)
+        XCTAssertEqual(store.mergedHistoryIDs, ["h1"])
+
+        transport.stubbedHistoryError = GitHubClientError.api(["boom"])
+        await store.refresh(force: true)
+        XCTAssertEqual(store.mergedHistoryIDs, ["h1"])
+    }
+
+    func testRefreshSkipsHistoryStatesWhenHistoryEmpty() async {
+        let transport = FakeTransport()
+        transport.stubbedData = FakeTransport.emptyDashboard
+        let store = makeStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertTrue(store.mergedHistoryIDs.isEmpty)
+        XCTAssertEqual(transport.historyStatesCallCount, 0)
     }
 
     func testDismissedPRStaysHiddenAfterSubsequentRefresh() async {

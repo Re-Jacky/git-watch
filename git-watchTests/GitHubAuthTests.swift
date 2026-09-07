@@ -18,6 +18,21 @@ final class GitHubAuthTestsTests: XCTestCase {
     }
 
     @MainActor
+    func testDeleteBranchAfterMergeDefaultsToChecked() {
+        let settings = GitHubSettings(userDefaults: UserDefaultsFactory.make())
+        XCTAssertTrue(settings.deleteBranchAfterMerge)
+    }
+
+    @MainActor
+    func testDeleteBranchAfterMergePersists() {
+        let defaults = UserDefaultsFactory.make()
+        let settings = GitHubSettings(userDefaults: defaults)
+        settings.deleteBranchAfterMerge = false
+        let reloaded = GitHubSettings(userDefaults: defaults)
+        XCTAssertFalse(reloaded.deleteBranchAfterMerge)
+    }
+
+    @MainActor
     func testMergeMethodPersistsAndRawValuesMatchGraphQLNames() {
         let defaults = UserDefaultsFactory.make()
         let settings = GitHubSettings(userDefaults: defaults)

@@ -28,6 +28,7 @@ enum MergeMethod: String, CaseIterable, Identifiable {
 final class GitHubSettings: ObservableObject {
     static let patKey = "github.personalAccessToken"
     static let mergeMethodKey = "github.mergeMethod"
+    static let deleteBranchAfterMergeKey = "github.deleteBranchAfterMerge"
     static let autoModeKey = "github.autoModeEnabled"
     static let autoApproveKey = "github.autoApprove"
     static let autoMergeKey = "github.autoMerge"
@@ -39,6 +40,10 @@ final class GitHubSettings: ObservableObject {
 
     @Published var mergeMethod: MergeMethod {
         didSet { userDefaults.set(mergeMethod.rawValue, forKey: Self.mergeMethodKey) }
+    }
+
+    @Published var deleteBranchAfterMerge: Bool {
+        didSet { userDefaults.set(deleteBranchAfterMerge, forKey: Self.deleteBranchAfterMergeKey) }
     }
 
     @Published var autoModeEnabled: Bool {
@@ -66,6 +71,7 @@ final class GitHubSettings: ObservableObject {
         self.personalAccessToken = userDefaults.string(forKey: Self.patKey) ?? ""
         let raw = userDefaults.string(forKey: Self.mergeMethodKey)
         self.mergeMethod = raw.flatMap(MergeMethod.init(rawValue:)) ?? .merge
+        self.deleteBranchAfterMerge = userDefaults.object(forKey: Self.deleteBranchAfterMergeKey) as? Bool ?? true
         self.autoModeEnabled = userDefaults.bool(forKey: Self.autoModeKey)
         self.autoApproveEnabled = userDefaults.object(forKey: Self.autoApproveKey) as? Bool ?? true
         self.autoMergeEnabled = userDefaults.bool(forKey: Self.autoMergeKey)
@@ -77,6 +83,7 @@ final class GitHubSettings: ObservableObject {
         self.ghCLI = ghCLI
         self.personalAccessToken = personalAccessToken
         self.mergeMethod = .merge
+        self.deleteBranchAfterMerge = true
         self.autoModeEnabled = false
         self.autoApproveEnabled = true
         self.autoMergeEnabled = false

@@ -47,12 +47,21 @@ final class PullRequestClassifierTests: XCTestCase {
         XCTAssertEqual(result.readyToMerge.count, 1)
     }
 
-    func testBlockedOrBehindStaysInWaiting() {
-        let blocked = summary(id: "d", daysAgo: 1, state: .blocked, permission: .write, mergeable: true)
-        let behind = summary(id: "e", daysAgo: 2, state: .behind, permission: .maintain, mergeable: true)
+    func testUnmergeableStaysInWaitingRegardlessOfState() {
+        let blocked = summary(id: "d", daysAgo: 1, state: .blocked, permission: .write, mergeable: false)
+        let behind = summary(id: "e", daysAgo: 2, state: .behind, permission: .maintain, mergeable: false)
         let result = PullRequestClassifier.group(authored: [], reviewRequested: [blocked, behind])
         XCTAssertEqual(result.waitingMyReview.map(\.id), ["d", "e"])
         XCTAssertTrue(result.readyToMerge.isEmpty)
+    }
+
+    func testMergeablePRReadyRegardlessOfMergeStateStatus() {
+        let unstable = summary(id: "u", state: .unstable, permission: .maintain, mergeable: true)
+        let blocked = summary(id: "b2", state: .blocked, permission: .write, mergeable: true)
+        let behind = summary(id: "b3", state: .behind, permission: .admin, mergeable: true)
+        let result = PullRequestClassifier.group(authored: [], reviewRequested: [unstable, blocked, behind])
+        XCTAssertEqual(Set(result.readyToMerge.map(\.id)), ["u", "b2", "b3"])
+        XCTAssertTrue(result.waitingMyReview.isEmpty)
     }
 
     func testReadOnlyPermissionNeverReadyToMerge() {

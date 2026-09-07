@@ -87,6 +87,11 @@ final class PullRequestModelDecodingTests: XCTestCase {
         XCTAssertTrue(try GitHubClient.decodeMergeResponse(Data(body.utf8)))
     }
 
+    func testHistoryStatesPayloadParsesMergedIDs() throws {
+        let body = #"{"data":{"nodes":[{"id":"PR_1","merged":true},{"id":"PR_2","merged":false},null]}}"#
+        XCTAssertEqual(try GitHubClient.decodeHistoryStates(Data(body.utf8)), ["PR_1"])
+    }
+
     func testMergeMethodGraphqlNamesAreStable() {
         XCTAssertEqual(MergeMethod.merge.graphqlName, "MERGE")
         XCTAssertEqual(MergeMethod.squash.graphqlName, "SQUASH")

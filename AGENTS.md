@@ -18,8 +18,9 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 - Footer is pinned structurally (`VStack` last child) — do not wrap it in scroll content
 - `PullRequestStore` is the single source of truth for PR lists, connection status, badge count, and action errors
 - Badge counts `totalCount` (all live PRs: mine + review + merge); dismissed PRs (persisted under `github.dismissedPRIds`) are filtered at publish time and excluded from every list and count; Settings → GitHub restores them
-- Classification lives only in `PullRequestClassifier`: ready-to-merge requires `mergeStateStatus ∈ {CLEAN, HAS_HOOKS}` AND `viewerPermission ∈ {WRITE, MAINTAIN, ADMIN}` AND `mergeable == MERGEABLE`
-- v1 scope limit: ready-to-merge candidates come solely from the two dashboard searches (authored / review-requested); teammate PRs you are neither author nor requested reviewer of are invisible by design
+- Classification lives only in `PullRequestClassifier`: ready-to-merge requires `viewerPermission ∈ {WRITE, MAINTAIN, ADMIN}` AND `mergeable == MERGEABLE` (GitHub's authoritative mergeable flag); `mergeStateStatus` is display-only and never gates actions, matching github.com across repos with different checklists
+- Mine tab offers Merge in place via `PullRequestStore.canOfferMergeForMine` (`summary.canMerge`, no approval gate since authors can't approve own PRs); Review tab still uses `canOfferMergeInPlace` (approved + `canMerge`) and `shouldOfferApprove`
+- v1 scope limit: PRs come solely from the two dashboard searches (authored / review-requested); teammate PRs you are neither author nor requested reviewer of are invisible by design
 - `GitHubClient.isAuthenticated` exists as an internal read-only accessor derived from provider.resolution (added Task 6 for no-token detection without network calls)
 - `.gitwatchPanelTabDidChange` posts Int as notification object — observers cast `object as? Int`
 
@@ -31,8 +32,10 @@ macOS 14+ menu bar app in Swift 5.9+ (`LSUIElement = true`, Dock-less). AppKit e
 
 ## Repo-Specific Conventions
 
-- Semantic colors from `Views/Colors.swift`; the only exceptions are the three GitHub status colors (`appStatusSuccess/Failure/Pending`) defined there as hex constants
+- Semantic colors from `Views/Colors.swift`; the only exceptions are the four GitHub status colors (`appStatusSuccess/Failure/Pending/Merged`, the last matching github.com's merged purple `8957E5`) defined there as hex constants
 - Do not add comments to code
 - Merge method default is `.merge` (matches github.com); persisted under `github.mergeMethod`
+- Delete head branch after merge defaults to on (checked); persisted under `github.deleteBranchAfterMerge`; `PullRequestStore.merge` runs it as a best-effort REST `DELETE /repos/{owner}/{repo}/git/refs/heads/{branch}` after a successful merge (manual + auto), using `headRefName` / head repo from the dashboard query — merge still counts if delete fails, the error is shown inline
 - Refresh interval is a fixed 300 s constant passed to `startAutomaticRefresh` — do not expose it in Settings without updating the spec
 - Auto Mode (`github.autoModeEnabled` master switch; scopes `github.autoApprove` default true, `github.autoMerge` default false): store processes approve (waiting bucket, any CI state, re-approving after stale dismissals) and merge (ready bucket) per enabled scope at the tail of every `refresh(force:)` and immediately on enable via the settings sink; `isAutoProcessing` guards re-entry — do not call `processAutoActions()` from inside `performRefresh()`
+- Auto-approved history rows show a `Merged` chip once GitHub reports the PR merged: `PullRequestStore.mergedHistoryIDs` (in-memory, intersected with history IDs) refreshes via the `HistoryStates` `nodes(ids:)` query on every live `refresh(force:)`; failures keep the previous set and an empty history skips the call

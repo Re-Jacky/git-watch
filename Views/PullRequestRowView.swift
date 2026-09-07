@@ -9,6 +9,7 @@ struct PullRequestRowView: View {
     var onDismiss: (() -> Void)? = nil
     var showsAuthor: Bool = false
     var locallyApproved: Bool = false
+    var isMerged: Bool = false
 
     enum RowAction: Equatable {
         case none
@@ -158,6 +159,9 @@ struct PullRequestRowView: View {
     }
 
     private var reviewChipText: (text: String, color: Color)? {
+        if isMerged {
+            return ("Merged", Color.appStatusMerged)
+        }
         if locallyApproved {
             return ("Approved", Color.appStatusSuccess)
         }

@@ -19,20 +19,41 @@ enum UserDefaultsFactory {
 }
 
 final class FakeTransport: GitHubTransporting {
+    struct DeletedRef: Equatable {
+        let owner: String
+        let repo: String
+        let branch: String
+    }
+
     var stubbedData: Data?
     var stubbedError: Error?
+    var stubbedDeleteError: Error?
+    var stubbedHistoryData: Data?
+    var stubbedHistoryError: Error?
     var failMutations = false
     private(set) var callCount = 0
     private(set) var recordedQueries: [String] = []
+    private(set) var deletedRefs: [DeletedRef] = []
+    private(set) var historyStatesCallCount = 0
 
     func post(_ query: String, variables: [String: Any], token: String) async throws -> Data {
         callCount += 1
         recordedQueries.append(query)
+        if query.contains("HistoryStates") {
+            historyStatesCallCount += 1
+            if let error = stubbedHistoryError { throw error }
+            return stubbedHistoryData ?? Data(#"{"data":{"nodes":[]}}"#.utf8)
+        }
         if failMutations, query.contains("addPullRequestReview") || query.contains("mergePullRequest") {
             throw GitHubClientError.api(["mutation rejected"])
         }
         if let error = stubbedError { throw error }
         return stubbedData ?? Self.emptyDashboard
+    }
+
+    func deleteBranch(owner: String, repo: String, branch: String, token: String) async throws {
+        deletedRefs.append(DeletedRef(owner: owner, repo: repo, branch: branch))
+        if let error = stubbedDeleteError { throw error }
     }
 
     func mutationCallCount(containing marker: String) -> Int {
@@ -127,7 +148,9 @@ enum DashboardFixture {
                     "viewerPermission": pr.viewerPermission.rawValue
                 ],
                 "mergeable": pr.mergeable ? "MERGEABLE" : "CONFLICTING",
-                "mergeStateStatus": pr.mergeStateStatus.rawValue
+                "mergeStateStatus": pr.mergeStateStatus.rawValue,
+                "headRefName": pr.headRefName,
+                "headRepository": ["nameWithOwner": pr.headRepositoryNameWithOwner]
             ]
             if let decision = pr.reviewDecision {
                 json["reviewDecision"] = decision.rawValue

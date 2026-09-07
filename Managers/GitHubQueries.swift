@@ -26,6 +26,8 @@ enum GitHubQueries {
       reviewDecision
       mergeable
       mergeStateStatus
+      headRefName
+      headRepository { nameWithOwner }
       commits(last: 1) {
         nodes {
           commit {
@@ -57,6 +59,14 @@ enum GitHubQueries {
     mutation Merge($pullRequestId: ID!, $method: PullRequestMergeMethod!) {
       mergePullRequest(input: { pullRequestId: $pullRequestId, mergeMethod: $method }) {
         pullRequest { merged }
+      }
+    }
+    """
+
+    static let historyStates = """
+    query HistoryStates($ids: [ID!]!) {
+      nodes(ids: $ids) {
+        ... on PullRequest { id merged }
       }
     }
     """

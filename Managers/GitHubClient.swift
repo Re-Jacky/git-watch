@@ -8,6 +8,33 @@ enum GitHubClientError: Error, Equatable {
 
 protocol GitHubTransporting {
     func post(_ query: String, variables: [String: Any], token: String) async throws -> Data
+    func deleteBranch(owner: String, repo: String, branch: String, token: String) async throws
+}
+
+extension GitHubTransporting {
+    func deleteBranch(owner: String, repo: String, branch: String, token: String) async throws {
+        let encoded = branch.split(separator: "/").map {
+            $0.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? String($0)
+        }.joined(separator: "/")
+        let url = URL(string: "https://api.github.com/repos/\(owner)/\(repo)/git/refs/heads/\(encoded)")!
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { return }
+        switch http.statusCode {
+        case 204:
+            return
+        case 401:
+            throw GitHubClientError.unauthorized
+        case 403, 429:
+            throw GitHubClientError.rateLimited
+        default:
+            throw GitHubClientError.api(["Delete branch failed with HTTP \(http.statusCode)"])
+        }
+    }
 }
 
 final class URLSessionGitHubTransport: GitHubTransporting {
@@ -85,6 +112,13 @@ final class GitHubClient {
         )
     }
 
+    func deleteHeadBranch(owner: String, repo: String, branch: String) async throws {
+        guard let token = provider.resolution.token else {
+            throw GitHubClientError.unauthorized
+        }
+        try await transport.deleteBranch(owner: owner, repo: repo, branch: branch, token: token)
+    }
+
     private func runMutation(_ query: String, variables: [String: Any]) async throws {
         guard let token = provider.resolution.token else {
             throw GitHubClientError.unauthorized
@@ -118,6 +152,29 @@ final class GitHubClient {
     }()
 
     private static let isoSeconds = ISO8601DateFormatter()
+
+    func fetchHistoryMergedStates(ids: [String]) async throws -> Set<String> {
+        guard let token = provider.resolution.token else {
+            throw GitHubClientError.unauthorized
+        }
+        let data = try await transport.post(GitHubQueries.historyStates, variables: ["ids": ids], token: token)
+        return try Self.decodeHistoryStates(data)
+    }
+
+    static func decodeHistoryStates(_ data: Data) throws -> Set<String> {
+        struct Node: Decodable { let id: String; let merged: Bool? }
+        struct Payload: Decodable { let nodes: [Node?] }
+        struct Envelope: Decodable {
+            let errors: [GraphQLError]?
+            let data: Payload?
+        }
+        let envelope = try JSONDecoder().decode(Envelope.self, from: data)
+        try throwIfErrors(envelope.errors)
+        guard let nodes = envelope.data?.nodes else {
+            throw GitHubClientError.api(["Empty response"])
+        }
+        return Set(nodes.compactMap { $0 }.filter { $0.merged == true }.map(\.id))
+    }
 
     static func decodeMergeResponse(_ data: Data) throws -> Bool {
         struct Payload: Decodable {
@@ -171,6 +228,7 @@ private struct DashboardData: Decodable {
     struct PullRequestNode: Decodable {
         struct Author: Decodable { let login: String }
         struct Repo: Decodable { let nameWithOwner: String; let viewerPermission: ViewerPermission }
+        struct HeadRepo: Decodable { let nameWithOwner: String? }
         struct Commits: Decodable {
             struct CommitNode: Decodable {
                 struct Commit: Decodable {
@@ -210,12 +268,15 @@ private struct DashboardData: Decodable {
         let mergeableRaw: String?
         let mergeStateStatus: MergeStateStatus
         let commits: Commits?
+        let headRefName: String?
+        let headRepository: HeadRepo?
 
         private enum CodingKeys: String, CodingKey {
             case id, number, title, url, createdAt, author, repository, commits
             case reviewDecision
             case mergeableRaw = "mergeable"
             case mergeStateStatus
+            case headRefName, headRepository
         }
     }
 
@@ -257,7 +318,9 @@ private struct DashboardData: Decodable {
                 mergeable: node.mergeableRaw == "MERGEABLE",
                 mergeStateStatus: node.mergeStateStatus,
                 viewerPermission: node.repository.viewerPermission,
-                checks: checks
+                checks: checks,
+                headRefName: node.headRefName ?? "",
+                headRepositoryNameWithOwner: node.headRepository?.nameWithOwner ?? node.repository.nameWithOwner
             )
         }
 

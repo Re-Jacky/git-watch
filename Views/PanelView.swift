@@ -127,6 +127,13 @@ private struct MineListView: View {
     let inFlight: Set<String>
     let store: PullRequestStore
 
+    private func rowActionForMinePR(_ pr: PullRequestSummary) -> PullRequestRowView.RowAction {
+        if store.canOfferMergeForMine(for: pr) {
+            return .merge(store.settingsMergeMethod)
+        }
+        return .none
+    }
+
     var body: some View {
         Group {
             if items.isEmpty && store.status != .refreshing {
@@ -137,10 +144,10 @@ private struct MineListView: View {
                         ForEach(items) { pr in
                             PullRequestRowView(
                                 summary: pr,
-                                action: .none,
-                                inFlight: false,
+                                action: rowActionForMinePR(pr),
+                                inFlight: inFlight.contains(pr.id),
                                 errorMessage: errors[pr.id],
-                                onAction: {},
+                                onAction: { Task { await store.merge(pr) } },
                                 onDismiss: { store.dismiss(pr) }
                             )
                         }
@@ -266,7 +273,8 @@ private struct ReviewMergeListView: View {
                         onAction: {},
                         onDismiss: nil,
                         showsAuthor: true,
-                        locallyApproved: true
+                        locallyApproved: true,
+                        isMerged: store.mergedHistoryIDs.contains(entry.id)
                     )
                     .opacity(0.55)
                 }

@@ -24,6 +24,7 @@ extension Color {
     static var appStatusSuccess: Color { Color(hex: "3FB950") }
     static var appStatusFailure: Color { Color(hex: "F85149") }
     static var appStatusPending: Color { Color(hex: "D29922") }
+    static var appStatusMerged: Color { Color(hex: "8957E5") }
 }
 
 struct VisualEffectView: NSViewRepresentable {
