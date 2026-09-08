@@ -153,7 +153,7 @@ final class GitHubClient {
 
     private static let isoSeconds = ISO8601DateFormatter()
 
-    func fetchHistoryMergedStates(ids: [String]) async throws -> Set<String> {
+    func fetchHistoryStates(ids: [String]) async throws -> [String: HistoryPRStatus] {
         guard let token = provider.resolution.token else {
             throw GitHubClientError.unauthorized
         }
@@ -161,8 +161,24 @@ final class GitHubClient {
         return try Self.decodeHistoryStates(data)
     }
 
-    static func decodeHistoryStates(_ data: Data) throws -> Set<String> {
-        struct Node: Decodable { let id: String; let merged: Bool? }
+    static func decodeHistoryStates(_ data: Data) throws -> [String: HistoryPRStatus] {
+        struct Repo: Decodable { let nameWithOwner: String?; let viewerPermission: ViewerPermission? }
+        struct HeadRepo: Decodable { let nameWithOwner: String? }
+        struct Node: Decodable {
+            let id: String
+            let merged: Bool?
+            let reviewDecision: LenientReviewDecision?
+            let mergeableRaw: String?
+            let mergeStateStatus: MergeStateStatus?
+            let headRefName: String?
+            let headRepository: HeadRepo?
+            let repository: Repo?
+
+            private enum CodingKeys: String, CodingKey {
+                case id, merged, reviewDecision, mergeStateStatus, headRefName, headRepository, repository
+                case mergeableRaw = "mergeable"
+            }
+        }
         struct Payload: Decodable { let nodes: [Node?] }
         struct Envelope: Decodable {
             let errors: [GraphQLError]?
@@ -173,7 +189,21 @@ final class GitHubClient {
         guard let nodes = envelope.data?.nodes else {
             throw GitHubClientError.api(["Empty response"])
         }
-        return Set(nodes.compactMap { $0 }.filter { $0.merged == true }.map(\.id))
+        var out: [String: HistoryPRStatus] = [:]
+        for node in nodes.compactMap({ $0 }) {
+            let repoName = node.repository?.nameWithOwner ?? ""
+            out[node.id] = HistoryPRStatus(
+                merged: node.merged ?? false,
+                reviewDecision: node.reviewDecision?.value,
+                mergeable: node.mergeableRaw == "MERGEABLE",
+                mergeStateStatus: node.mergeStateStatus ?? .unknown,
+                viewerPermission: node.repository?.viewerPermission ?? .unknown,
+                headRefName: node.headRefName ?? "",
+                headRepositoryNameWithOwner: node.headRepository?.nameWithOwner ?? repoName,
+                repositoryNameWithOwner: repoName
+            )
+        }
+        return out
     }
 
     static func decodeMergeResponse(_ data: Data) throws -> Bool {

@@ -252,25 +252,13 @@ private struct ReviewMergeListView: View {
             .padding(.bottom, 2)
             if isHistoryCollapsed == false {
                 ForEach(store.autoApprovedHistory) { entry in
+                    let canMerge = store.canOfferMergeForHistory(entry)
                     PullRequestRowView(
-                        summary: PullRequestSummary(
-                            id: entry.id,
-                            number: entry.number,
-                            title: entry.title,
-                            repositoryNameWithOwner: entry.repositoryNameWithOwner,
-                            url: entry.url,
-                            authorLogin: entry.authorLogin,
-                            createdAt: entry.createdAt,
-                            reviewDecision: .approved,
-                            mergeable: false,
-                            mergeStateStatus: .unknown,
-                            viewerPermission: .unknown,
-                            checks: []
-                        ),
-                        action: .none,
-                        inFlight: false,
-                        errorMessage: nil,
-                        onAction: {},
+                        summary: store.historySummary(for: entry),
+                        action: canMerge ? .merge(store.settingsMergeMethod) : .none,
+                        inFlight: inFlight.contains(entry.id),
+                        errorMessage: errors[entry.id],
+                        onAction: { Task { await store.mergeHistoryEntry(entry) } },
                         onDismiss: nil,
                         showsAuthor: true,
                         locallyApproved: true,

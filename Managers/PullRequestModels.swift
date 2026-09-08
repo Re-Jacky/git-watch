@@ -123,6 +123,22 @@ struct PullRequestSummary: Identifiable, Equatable {
     }
 }
 
+struct HistoryPRStatus: Equatable {
+    let merged: Bool
+    let reviewDecision: ReviewDecision?
+    let mergeable: Bool
+    let mergeStateStatus: MergeStateStatus
+    let viewerPermission: ViewerPermission
+    let headRefName: String
+    let headRepositoryNameWithOwner: String
+    let repositoryNameWithOwner: String
+
+    var canMerge: Bool {
+        let permissionOK = viewerPermission == .write || viewerPermission == .maintain || viewerPermission == .admin
+        return permissionOK && mergeable
+    }
+}
+
 struct PRGroupings: Equatable {
     let mine: [PullRequestSummary]
     let waitingMyReview: [PullRequestSummary]
@@ -145,8 +161,13 @@ enum PullRequestClassifier {
             .sorted { $0.createdAt > $1.createdAt }
         return PRGroupings(
             mine: sortedMine,
-            waitingMyReview: nonMine.filter { $0.canMerge == false },
-            readyToMerge: nonMine.filter { $0.canMerge }
+            waitingMyReview: nonMine.filter { isReadyToMerge($0) == false },
+            readyToMerge: nonMine.filter { isReadyToMerge($0) }
         )
+    }
+
+    private static func isReadyToMerge(_ pr: PullRequestSummary) -> Bool {
+        guard pr.canMerge else { return false }
+        return pr.reviewDecision == .approved || pr.reviewDecision == nil
     }
 }

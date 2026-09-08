@@ -66,7 +66,16 @@ enum GitHubQueries {
     static let historyStates = """
     query HistoryStates($ids: [ID!]!) {
       nodes(ids: $ids) {
-        ... on PullRequest { id merged }
+        ... on PullRequest {
+          id
+          merged
+          reviewDecision
+          mergeable
+          mergeStateStatus
+          headRefName
+          headRepository { nameWithOwner }
+          repository { nameWithOwner viewerPermission }
+        }
       }
     }
     """

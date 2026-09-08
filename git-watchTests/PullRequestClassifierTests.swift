@@ -7,7 +7,8 @@ final class PullRequestClassifierTests: XCTestCase {
         daysAgo: Int = 1,
         state: MergeStateStatus = .blocked,
         permission: ViewerPermission = .read,
-        mergeable: Bool = false
+        mergeable: Bool = false,
+        reviewDecision: ReviewDecision? = nil
     ) -> PullRequestSummary {
         PullRequestSummary(
             id: id,
@@ -17,7 +18,7 @@ final class PullRequestClassifierTests: XCTestCase {
             url: URL(string: "https://github.com/o/r/pull/1")!,
             authorLogin: "someone",
             createdAt: Date(timeIntervalSinceNow: -Double(daysAgo) * 86400),
-            reviewDecision: nil,
+            reviewDecision: reviewDecision,
             mergeable: mergeable,
             mergeStateStatus: state,
             viewerPermission: permission,
@@ -96,5 +97,33 @@ final class PullRequestClassifierTests: XCTestCase {
             reviewRequested: []
         )
         XCTAssertEqual(result.mine.map(\.id), ["new", "mid", "old"])
+    }
+
+    func testPendingReviewMergeableStaysInWaiting() {
+        let pending = summary(id: "p", state: .clean, permission: .write, mergeable: true, reviewDecision: .reviewRequired)
+        let result = PullRequestClassifier.group(authored: [], reviewRequested: [pending])
+        XCTAssertEqual(result.waitingMyReview.map(\.id), ["p"])
+        XCTAssertTrue(result.readyToMerge.isEmpty)
+    }
+
+    func testChangesRequestedMergeableStaysInWaiting() {
+        let changes = summary(id: "c", state: .clean, permission: .write, mergeable: true, reviewDecision: .changesRequested)
+        let result = PullRequestClassifier.group(authored: [], reviewRequested: [changes])
+        XCTAssertEqual(result.waitingMyReview.map(\.id), ["c"])
+        XCTAssertTrue(result.readyToMerge.isEmpty)
+    }
+
+    func testApprovedMergeableIsReadyToMerge() {
+        let approved = summary(id: "a", state: .clean, permission: .write, mergeable: true, reviewDecision: .approved)
+        let result = PullRequestClassifier.group(authored: [], reviewRequested: [approved])
+        XCTAssertEqual(result.readyToMerge.map(\.id), ["a"])
+        XCTAssertTrue(result.waitingMyReview.isEmpty)
+    }
+
+    func testNoReviewDecisionMergeableIsReadyToMerge() {
+        let none = summary(id: "n", state: .clean, permission: .write, mergeable: true, reviewDecision: nil)
+        let result = PullRequestClassifier.group(authored: [], reviewRequested: [none])
+        XCTAssertEqual(result.readyToMerge.map(\.id), ["n"])
+        XCTAssertTrue(result.waitingMyReview.isEmpty)
     }
 }

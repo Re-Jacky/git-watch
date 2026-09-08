@@ -89,7 +89,29 @@ final class PullRequestModelDecodingTests: XCTestCase {
 
     func testHistoryStatesPayloadParsesMergedIDs() throws {
         let body = #"{"data":{"nodes":[{"id":"PR_1","merged":true},{"id":"PR_2","merged":false},null]}}"#
-        XCTAssertEqual(try GitHubClient.decodeHistoryStates(Data(body.utf8)), ["PR_1"])
+        let states = try GitHubClient.decodeHistoryStates(Data(body.utf8))
+        XCTAssertEqual(states["PR_1"]?.merged, true)
+        XCTAssertEqual(states["PR_2"]?.merged, false)
+        XCTAssertEqual(states["PR_2"]?.viewerPermission, .unknown)
+        XCTAssertFalse(states["PR_2"]?.canMerge ?? true)
+    }
+
+    func testHistoryStatesPayloadParsesMergeReadiness() throws {
+        let body = """
+        {"data":{"nodes":[{
+          "id":"PR_9","merged":false,"reviewDecision":"APPROVED",
+          "mergeable":"MERGEABLE","mergeStateStatus":"CLEAN",
+          "headRefName":"feature","headRepository":{"nameWithOwner":"o/r"},
+          "repository":{"nameWithOwner":"o/r","viewerPermission":"WRITE"}
+        }]}}
+        """
+        let states = try GitHubClient.decodeHistoryStates(Data(body.utf8))
+        XCTAssertEqual(states["PR_9"]?.merged, false)
+        XCTAssertEqual(states["PR_9"]?.reviewDecision, .approved)
+        XCTAssertEqual(states["PR_9"]?.mergeStateStatus, .clean)
+        XCTAssertEqual(states["PR_9"]?.viewerPermission, .write)
+        XCTAssertEqual(states["PR_9"]?.headRefName, "feature")
+        XCTAssertEqual(states["PR_9"]?.canMerge, true)
     }
 
     func testMergeMethodGraphqlNamesAreStable() {

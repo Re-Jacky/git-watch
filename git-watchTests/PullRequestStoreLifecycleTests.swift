@@ -299,6 +299,24 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         XCTAssertFalse(store.canOfferMergeForMine(for: .placeholder(id: "r1")))
     }
 
+    func testMineMergeWithheldWhileReviewRequiredOrChangesRequested() async {
+        let store = makeStore(transport: FakeTransport())
+        let pendingReview = PullRequestSummary(
+            id: "m3", number: 178, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/178")!, authorLogin: "me",
+            createdAt: Date(), reviewDecision: .reviewRequired, mergeable: true,
+            mergeStateStatus: .blocked, viewerPermission: .write, checks: []
+        )
+        let changesRequested = PullRequestSummary(
+            id: "m4", number: 179, title: "t", repositoryNameWithOwner: "o/r",
+            url: URL(string: "https://github.com/o/r/pull/179")!, authorLogin: "me",
+            createdAt: Date(), reviewDecision: .changesRequested, mergeable: true,
+            mergeStateStatus: .blocked, viewerPermission: .write, checks: []
+        )
+        XCTAssertFalse(store.canOfferMergeForMine(for: pendingReview))
+        XCTAssertFalse(store.canOfferMergeForMine(for: changesRequested))
+    }
+
     func testSuccessfulMergeDeletesHeadBranchWhenEnabled() async {
         let transport = FakeTransport()
         transport.stubbedData = DashboardFixture.make()
@@ -665,6 +683,91 @@ final class PullRequestStoreLifecycleTests: XCTestCase {
         transport.stubbedHistoryError = GitHubClientError.api(["boom"])
         await store.refresh(force: true)
         XCTAssertEqual(store.mergedHistoryIDs, ["h1"])
+    }
+
+    private func historyCandidate(id: String) -> PullRequestSummary {
+        PullRequestSummary(
+            id: id, number: 11, title: "t", repositoryNameWithOwner: "o/real",
+            url: URL(string: "https://github.com/o/real/pull/11")!, authorLogin: "teammate",
+            createdAt: Date(), reviewDecision: nil, mergeable: false,
+            mergeStateStatus: .blocked, viewerPermission: .read, checks: []
+        )
+    }
+
+    private func historyStatesData(
+        id: String,
+        merged: Bool,
+        reviewDecision: String?,
+        mergeable: String,
+        permission: String
+    ) -> Data {
+        let decision = reviewDecision.map { "\"\($0)\"" } ?? "null"
+        return Data("""
+        {"data":{"nodes":[{
+          "id":"\(id)","merged":\(merged ? "true" : "false"),"reviewDecision":\(decision),
+          "mergeable":"\(mergeable)","mergeStateStatus":"CLEAN",
+          "headRefName":"feature","headRepository":{"nameWithOwner":"o/real"},
+          "repository":{"nameWithOwner":"o/real","viewerPermission":"\(permission)"}
+        }]}}
+        """.utf8)
+    }
+
+    func testHistoryOffersMergeWhenPrivilegedAndMergeable() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(reviewRequested: [historyCandidate(id: "h9")])
+        let (store, _) = makeInstrumentedAutoStore(transport: transport)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.autoApprovedHistory.map(\.id), ["h9"])
+        XCTAssertFalse(store.canOfferMergeForHistory(store.autoApprovedHistory[0]))
+
+        transport.stubbedHistoryData = historyStatesData(
+            id: "h9", merged: false, reviewDecision: "APPROVED", mergeable: "MERGEABLE", permission: "WRITE"
+        )
+        await store.refresh(force: true)
+        let entry = store.autoApprovedHistory[0]
+        XCTAssertTrue(store.canOfferMergeForHistory(entry))
+        XCTAssertTrue(store.historySummary(for: entry).canMerge)
+        XCTAssertFalse(store.mergedHistoryIDs.contains("h9"))
+    }
+
+    func testHistoryWithholdsMergeWithoutPrivilegeOrMergeability() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(reviewRequested: [historyCandidate(id: "h9")])
+        let (store, _) = makeInstrumentedAutoStore(transport: transport)
+        await store.refresh(force: true)
+
+        transport.stubbedHistoryData = historyStatesData(
+            id: "h9", merged: false, reviewDecision: "APPROVED", mergeable: "MERGEABLE", permission: "READ"
+        )
+        await store.refresh(force: true)
+        XCTAssertFalse(store.canOfferMergeForHistory(store.autoApprovedHistory[0]))
+
+        transport.stubbedHistoryData = historyStatesData(
+            id: "h9", merged: false, reviewDecision: "APPROVED", mergeable: "CONFLICTING", permission: "WRITE"
+        )
+        await store.refresh(force: true)
+        XCTAssertFalse(store.canOfferMergeForHistory(store.autoApprovedHistory[0]))
+
+        transport.stubbedHistoryData = historyStatesData(
+            id: "h9", merged: false, reviewDecision: "CHANGES_REQUESTED", mergeable: "MERGEABLE", permission: "WRITE"
+        )
+        await store.refresh(force: true)
+        XCTAssertFalse(store.canOfferMergeForHistory(store.autoApprovedHistory[0]))
+    }
+
+    func testHistoryMergePerformsMergeAndBranchDelete() async {
+        let transport = FakeTransport()
+        transport.stubbedData = DashboardFixture.make(reviewRequested: [historyCandidate(id: "h9")])
+        let (store, _) = makeInstrumentedAutoStore(transport: transport)
+        await store.refresh(force: true)
+        transport.stubbedHistoryData = historyStatesData(
+            id: "h9", merged: false, reviewDecision: "APPROVED", mergeable: "MERGEABLE", permission: "WRITE"
+        )
+        await store.refresh(force: true)
+        await store.mergeHistoryEntry(store.autoApprovedHistory[0])
+        XCTAssertGreaterThanOrEqual(transport.mutationCallCount(containing: "mergePullRequest"), 1)
+        XCTAssertEqual(transport.deletedRefs.first?.branch, "feature")
+        XCTAssertNil(store.actionErrors["h9"])
     }
 
     func testRefreshSkipsHistoryStatesWhenHistoryEmpty() async {

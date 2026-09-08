@@ -62,6 +62,7 @@ final class PullRequestStore: ObservableObject {
     @Published private(set) var locallyApprovedIDs: Set<String> = []
     @Published private(set) var autoApprovedHistory: [AutoApprovedEntry] = []
     @Published private(set) var mergedHistoryIDs: Set<String> = []
+    @Published private(set) var historyStatuses: [String: HistoryPRStatus] = [:]
 
     var actionableCount: Int {
         waitingMyReview.count + readyToMerge.count
@@ -82,7 +83,8 @@ final class PullRequestStore: ObservableObject {
     }
 
     func canOfferMergeForMine(for summary: PullRequestSummary) -> Bool {
-        summary.canMerge
+        guard summary.reviewDecision == .approved || summary.reviewDecision == nil else { return false }
+        return summary.canMerge
     }
 
     var settingsMergeMethod: MergeMethod {
@@ -168,24 +170,76 @@ final class PullRequestStore: ObservableObject {
         if refreshGeneration == generation {
             refreshTask = nil
         }
-        await refreshHistoryMergedStates()
+        await refreshHistoryStates()
         await processAutoActions()
     }
 
-    private func refreshHistoryMergedStates() async {
+    private func refreshHistoryStates() async {
         guard status == .live, let client else {
             return
         }
         let ids = autoApprovedHistory.map(\.id)
         guard ids.isEmpty == false else {
             mergedHistoryIDs = []
+            historyStatuses = [:]
             return
         }
         do {
-            mergedHistoryIDs = try await client.fetchHistoryMergedStates(ids: ids).intersection(ids)
+            let states = try await client.fetchHistoryStates(ids: ids)
+            let known = states.filter { ids.contains($0.key) }
+            historyStatuses = known
+            mergedHistoryIDs = Set(known.filter { $0.value.merged }.map(\.key))
         } catch {
             return
         }
+    }
+
+    func historySummary(for entry: AutoApprovedEntry) -> PullRequestSummary {
+        let status = historyStatuses[entry.id]
+        return PullRequestSummary(
+            id: entry.id,
+            number: entry.number,
+            title: entry.title,
+            repositoryNameWithOwner: entry.repositoryNameWithOwner,
+            url: entry.url,
+            authorLogin: entry.authorLogin,
+            createdAt: entry.createdAt,
+            reviewDecision: status?.reviewDecision ?? .approved,
+            mergeable: status?.mergeable ?? false,
+            mergeStateStatus: status?.mergeStateStatus ?? .unknown,
+            viewerPermission: status?.viewerPermission ?? .unknown,
+            checks: []
+        )
+    }
+
+    func canOfferMergeForHistory(_ entry: AutoApprovedEntry) -> Bool {
+        guard let status = historyStatuses[entry.id], status.merged == false else { return false }
+        guard status.reviewDecision == .approved || status.reviewDecision == nil else { return false }
+        return status.canMerge
+    }
+
+    func mergeHistoryEntry(_ entry: AutoApprovedEntry) async {
+        let status = historyStatuses[entry.id]
+        let headRepo = status?.headRepositoryNameWithOwner
+        let headRepoOrFallback = (headRepo?.isEmpty == false ? headRepo : nil) ?? entry.repositoryNameWithOwner
+        await merge(
+            PullRequestSummary(
+                id: entry.id,
+                number: entry.number,
+                title: entry.title,
+                repositoryNameWithOwner: entry.repositoryNameWithOwner,
+                url: entry.url,
+                authorLogin: entry.authorLogin,
+                createdAt: entry.createdAt,
+                reviewDecision: status?.reviewDecision,
+                mergeable: status?.mergeable ?? false,
+                mergeStateStatus: status?.mergeStateStatus ?? .unknown,
+                viewerPermission: status?.viewerPermission ?? .unknown,
+                checks: [],
+                headRefName: status?.headRefName ?? "",
+                headRepositoryNameWithOwner: headRepoOrFallback
+            )
+        )
     }
 
     func processAutoActions() async {
